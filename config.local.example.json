@@ -27,6 +27,6 @@
   "chanlun": {
     "bars": 220,
     "westock_kline_limit": 260,
-    "min_stroke_gap": 4
+    "engine": "rs-czsc"
   }
 }

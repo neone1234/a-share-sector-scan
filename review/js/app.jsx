@@ -32,13 +32,17 @@ function sourceSummary(meta) {
   return [...new Set(names)].join(' + ') || '数据源不可用';
 }
 
+// 信号灯配色对齐 A 股涨红跌绿：green(可进攻)=红、yellow(观察)=金、red(防守)=绿。
+// 后端状态键名 green/yellow/red 保留不动，仅在展示层重新映射颜色。
+const STATUS_COLOR = { green: 'var(--up)', yellow: 'var(--gold)', red: 'var(--down)' };
+
 function SignalGauge({ signal }) {
   if (!signal) return null;
   const { score, temperature, status, label, guidance, reasons } = signal;
   const r = 48, C = 2 * Math.PI * r;
   const pct = Math.max(0, Math.min(100, score));
   const offset = C - (pct / 100) * C;
-  const color = status === 'green' ? '#1a7a4a' : status === 'yellow' ? '#8a6d0b' : '#a63a32';
+  const color = STATUS_COLOR[status] || 'var(--gold)';
 
   return (
     <div className="signal-hero">
@@ -46,7 +50,7 @@ function SignalGauge({ signal }) {
         <svg viewBox="0 0 120 120">
           <circle className="track" cx="60" cy="60" r={r} />
           <circle className="bar" cx="60" cy="60" r={r}
-            stroke={color} strokeDasharray={C} strokeDashoffset={offset} />
+            style={{ stroke: color }} strokeDasharray={C} strokeDashoffset={offset} />
         </svg>
         <div className="signal-score">
           <span className="num" style={{ color }}>{score}</span>
@@ -458,11 +462,11 @@ function App() {
 function Header({ selectedDate, onDateChange, loading, cached, onRefresh }) {
   return (
     <header className="top">
-      <a className="brand" href="/">
-        <span className="brand-mark">B</span>
+      <a className="brand" href="/sector">
+        <span className="brand-mark">复</span>
         <span className="brand-text">
-          <strong>Bloomberg 个人版</strong>
-          <small>Terminal</small>
+          <strong>A股分析终端</strong>
+          <small>MARKET REVIEW · 大盘复盘</small>
         </span>
       </a>
       <nav className="module-tabs" aria-label="功能模块">

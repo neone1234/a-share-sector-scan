@@ -4,7 +4,9 @@
 
 这是一个面向个人投资者的本地 AI 分析终端：先用全量行业板块数据找出当日强弱主线，再通过多因子模型量化排名，最后下钻到 A 股、港股和指数的缠论结构，帮助你快速回答三个问题：市场主线在哪里、资金是否延续、关键标的处在什么结构位置。
 
-系统优先使用 WeStock Data / 腾讯自选股行情，AKShare 作为备用数据源；后端规则负责涨跌、资金、趋势、多因子评分和缠论结构识别，AI 只做复盘总结与信号解释，不提供投资建议。
+系统优先使用 WeStock Data / 腾讯自选股行情，AKShare 作为备用数据源；后端规则负责涨跌、资金、趋势、多因子评分和 CZSC 缠论结构识别，AI 只做复盘总结与信号解释，不提供投资建议。
+
+开发过程记录：[把市场噪音压成一张雷达：一个本地 A 股 AI 终端的诞生](docs/development-case-study.md)
 
 ## 项目亮点
 
@@ -13,15 +15,16 @@
 - 决策看板覆盖 33 个 A 股主要行业板块，全部通过硬编码 ETF 代码直接拉取行情，不依赖东方财富接口。
 - 数据源有兜底：WeStock Data 优先，AKShare 备用，运行结果写入本地缓存，相同日期不重复请求。
 - AI 边界清晰：兼容 OpenAI 风格模型接口，AI 只总结和解释，不覆盖原始行情指标。
+- 缠论模块直接集成 `waditu/czsc` 核心能力，通过 `rs-czsc` 生成分型、笔和中枢候选。
 
 ## 核心功能
 
 ### 板块扫描
 
 - 按日期扫描，非交易日或未来日期自动回退到最近可用交易日。
-- 基于全量行业板块复盘，展示涨幅前 20 强板块。
+- 基于全量行业板块复盘，展示强度前 20 板块；强度评分使用带符号涨幅（大跌板块不计入"强"），叠加换手、5/20 日正收益、热度榜与主力净流入确认。
 - 热力图、领涨走势图和板块列表使用同一组排序结果。
-- 资金流支持 1 日、5 日、20 日维度。
+- 资金流支持 1 日、5 日、20 日维度；真实主力净流入缺失时按涨跌幅×换手估算，估算值带"估"角标明示，不与真实值混同。
 - 扫描结果按日期缓存；点击"重新扫描"会覆盖该日期缓存。
 
 ### 决策看板
@@ -31,14 +34,15 @@
 **板块轮动排行**
 
 - 覆盖 33 个主要行业板块，全部通过 ETF 行情代理计算，东方财富接口不可用时自动降级。
-- 四组因子：趋势（MA 多空排列、MACD 柱、ADX 强度）、动量（20 日涨跌幅、相对强弱 RS）、资金（主力净流入 1 日 / 5 日）、广度（涨跌比）。
-- 截面 Z-score 归一化，合成评分 [-1, +1]，映射到五档信号：强烈看多 / 看多 / 中性 / 看空 / 强烈看空。
-- 结果按日期缓存；点击"重新扫描"会强制刷新。
+- 四组因子：趋势（MA 多空排列、MACD 柱按价归一 %、ADX 方向）、动量（20 日 / 60 日涨跌幅，RS 超额收益仅展示）、资金（主力净流入净占比 1 日 / 5 日，占成交额比例、跨板块规模可比）、广度（涨跌比，轮动视图无真实数据时不参与评分）。
+- 截面 Z-score 归一化，组权重 趋势 0.30 / 动量 0.25 / 资金 0.25 / 广度 0.20；缺数据的组权重按比例重分配，不以 0 分占位。合成评分 [-1, +1] 映射五档信号：强烈看多 / 看多 / 中性 / 看空 / 强烈看空，档位只由综合分决定。
+- 置信度 = 数据完备度（基础 0.40 + ADX 0.15 + 真实资金流 0.25 + 真实广度 0.20）；广度/资金背离、交易拥挤只作警示标签并折减置信度，不改变信号档位。
+- 结果按日期缓存（v2 口径）；点击"重新扫描"会强制刷新。
 
 **板块深度分析**
 
-- 展示单一板块的各因子评分明细和置信度。
-- ATR 基准价格区间：入场区间、止损位、目标价一 / 目标价二。
+- 与轮动排行共用同一日截面归一结果，明细页与列表的评分、信号完全一致。
+- ATR 基准观察价位：入场区间、止损位、目标价一 / 目标价二，一律以可交易的首选 ETF 行情为基准并标注标的，同时给出相对幅度 %。
 - 成分股列表（来自 WeStock ETF 持仓）和 AI 复盘叙事。
 
 **个股分析**
@@ -50,8 +54,14 @@
 
 - 点击搜索框即可展示常用候选，按 `宽基指数 / 行业指数 / 热门股票 / 港股热门` 分组。
 - 指数候选覆盖上证、深证、创业板、科创、沪深 300、中证 500/1000、红利、中证行业、全指行业等。
-- 当前前端只开放日线复盘。
-- 后端计算 K 线包含处理、分型、笔、线段、中枢、MACD、背驰和买卖点。
+- 后端直接调用 `waditu/czsc` 核心对象，生成 `FX / BI / ZS` 结构；中枢采用扩展合并口径（三笔成立后向后并入重叠笔，互不重叠）。
+- 在 CZSC 笔端点序列上恢复线段、MACD 背驰与一二三类买卖点识别（规则口径：背驰面积比 + 中枢突破回抽），图上标记 B1/B2/B3/S1/S2/S3 并给出依据表。
+- 前端为 CZSC 工作台，展示 K 线 + MACD 副图、分型、笔、中枢、买卖点信号、多级别合成、运行状态和原始 JSON。
+- 支持 30 分钟 / 日线 / 周线。30 分钟依赖分钟行情源，若数据源返回日线或接口失败，系统会明确报错，不伪装为分钟线。
+- 接入 `BarGenerator` 做 K 线合成与多级别分析；接入 `list_all_signals` 展示 Rust 信号目录。
+- 增加 `generate_czsc_signals` 兼容门面，基于当前 CZSC 结构生成默认信号结果，也可通过接口传入信号序列。
+- 增加 ECharts / Plotly HTML 导出接口，弥补当前 Rust 核心 `to_echarts / to_plotly` 尚未实现的问题。
+- `WeightBacktest / run_research / run_replay` 已做能力识别，页面会展示可用状态；实际运行需要额外传入权重数据或策略配置。
 - 分析结果按 `symbol + period + date` 缓存；点击"重新分析"会覆盖同一缓存。
 
 ### 大盘复盘
@@ -60,6 +70,7 @@
 - 运行时展示步骤、已用时间和预计完成时间；完成后展示实际完成时间、耗时、数据源与 LLM 状态。
 - 市场宽度优先从指定日期的盘后新闻搜索中读取市场汇总数字，不从逐股明细累加；成交额使用沪深交易所日度股票数据。行业强弱优先使用同花顺全行业指数，再降级到 WeStock 真实行业板块，ETF 仅作末级降级。
 - LLM 报告以全市场视角输出市场总结、指数点评、资金动向、热点解读和后市观察；无直接数据的资金流、政策催化和价位不允许编造。
+- 大盘信号灯（广度 0.45 / 指数 0.35 / 涨跌停 0.20 加权）配色与全站涨红跌绿一致：可进攻=红、需观察=金、偏防守=绿；量能描述采用相对昨日的放量/缩量口径。
 - 结果按选择日期缓存；旧版本缓存会自动失效，避免沿用口径不一致的数据。
 
 ## 快速开始
@@ -71,11 +82,14 @@
 - Python 3.10+
 - Node.js / npx
 
-安装 AKShare 备用依赖：
+安装运行依赖：
 
 ```bash
-python3 -m pip install akshare pandas requests
+python3 -m pip install -r requirements.txt
+python3 -m pip install --no-deps rs-czsc
 ```
+
+若 Homebrew Python 提示 externally managed，可在上述命令后增加 `--user --break-system-packages`。
 
 ### 2. 配置 AI
 
@@ -153,7 +167,7 @@ AKShare 是备用数据源。若要直接使用 AKShare，可在 `config.local.j
 
 - **板块扫描**：选择日期，点击"按日期扫描"；需要刷新数据时点击"重新扫描"。
 - **决策看板**：进入"决策看板"页签，查看多因子排名；点击板块行下钻到因子明细和价格区间；点击成分股进入个股分析；需要刷新数据时点击"重新分析"。
-- **缠论分析**：进入"缠论分析"页签，搜索或直接选择候选标的，选择日期后自动分析；需要刷新数据时点击"重新分析"。
+- **缠论分析**：进入"缠论分析"页签，选择标的、周期和日期后运行 CZSC；需要刷新数据时点击"重新拉取"。
 - **大盘复盘**：选择复盘日期，系统会汇总指数、市场宽度、行业强弱和资讯，并生成结构化复盘报告。
 - 页面会展示实际分析日期、数据源、缓存状态和 AI 状态。
 
@@ -187,6 +201,18 @@ GET /api/chanlun/analyze?symbol=600519&period=day&date=2026-06-12
 GET /api/chanlun/analyze?symbol=sh000932&period=day&refresh=1
 ```
 
+返回 `meta / stock / bars / analysis / verdict / ai`，其中 `analysis` 直接包含 CZSC 结构：`engine / fxs / bis / zs / ubi / stats`。
+
+```text
+GET /api/chanlun/capabilities
+GET /api/chanlun/signals?q=bar&limit=50
+GET /api/chanlun/generate-signals?symbol=sh000001&period=day&signals=czsc._native.signals.bar.bar_end_V230331
+GET /api/chanlun/visualize?symbol=sh000001&period=day&format=echarts
+GET /api/chanlun/visualize?symbol=sh000001&period=day&format=plotly
+```
+
+`capabilities` 返回 CZSC 核心分析、BarGenerator、多级别、信号目录、权重回测、策略研究和可视化的接入状态；`signals` 返回当前 Rust 信号目录；`generate-signals` 是本地兼容门面；`visualize` 返回可直接打开的 ECharts / Plotly HTML。
+
 **大盘复盘**
 
 ```text
@@ -200,8 +226,8 @@ GET /api/review/history?limit=14
 ## 缓存与安全
 
 - 板块扫描缓存：`.cache/scan_request_YYYY-MM-DD.json`
-- 缠论分析缓存：`.cache/chanlun_{symbol}_{period}_{date}.json`
-- 决策看板缓存：`.cache/decision_rotation_all_{date}.json` / `.cache/decision_sector_{name}_{date}.json`
+- 缠论分析缓存：`.cache/chanlun_czsc_v2_{symbol}_{period}_{date}.json`
+- 决策看板缓存：`.cache/decision_v2_rotation_all_{date}.json` / `.cache/decision_v2_sector_{name}_{date}.json`（v2 因子口径，旧 `decision_*` 缓存自动失效）
 - 大盘复盘缓存：`.cache/review/review_YYYYMMDD.json`
 - 本地配置：`config.local.json`
 
@@ -231,19 +257,21 @@ GET /api/review/history?limit=14
 ├── terminal.css
 ├── data.js
 ├── server.py              ← 统一后端（扫描 + 缠论 + 决策 + 复盘）
+├── shared/                ← 全站共享设计令牌与组件样式
+│   ├── tokens.css
+│   └── ui.css
 ├── config.local.example.json
+├── requirements.txt
 ├── start_server.command
 ├── LICENSE
 ├── docs/
-│   └── screenshot.jpg
+│   ├── development-case-study.md
+│   └── project-review-2026-07.md  ← 2026-07 复盘与优化记录
 ├── 缠论/                  ← 缠论分析前端
 │   ├── index.html
 │   ├── styles.css
 │   └── js/
-│       ├── data.js
-│       ├── app.jsx
-│       ├── chart.jsx
-│       └── sections.jsx
+│       └── app.js
 ├── decision/              ← 决策看板前端
     ├── index.html
     ├── styles.css

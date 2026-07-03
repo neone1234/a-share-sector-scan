@@ -3,17 +3,8 @@
    ============================================================ */
 
 :root {
-  /* shared visual language with 缠论分析 */
-  --paper: #f3f1ea;
-  --card: #fffdf8;
-  --ink: #20242c;
-  --ink2: #6b6f78;
-  --hair: #e4dfd2;
-  --accent: #a63a32;
-  --gold: #9a7b2f;
-  --navy: #2c4a73;
-
-  /* aliases kept for the existing sector UI */
+  /* 调色板 / 字体 / 间距 / 涨跌语义统一来自 /shared/tokens.css。
+     以下仅为本页历史别名与页面特有的次级色，不得引入新的涨跌色。 */
   --bg: var(--paper);
   --bg-grad-1: #f6f3ea;
   --bg-grad-2: var(--paper);
@@ -25,46 +16,17 @@
   --grid-line: #eee8da;
   --text: var(--ink);
   --muted: var(--ink2);
-  --faint: #b0aa9c;
   --accent-soft: rgba(166,58,50,0.07);
   --accent-line: rgba(166,58,50,0.28);
-
-  /* semantic — A股 涨红跌绿 */
-  --up: #bf3a30;
-  --up-deep: #9d2d26;
-  --up-soft: rgba(191,58,48,0.09);
-  --down: #1e8a5e;
-  --down-deep: #146846;
-  --down-soft: rgba(30,138,94,0.09);
   --amber: var(--gold);
 
   /* dark popovers/drawers */
-  --chrome: var(--ink);
   --chrome-2: #2b3039;
-  --chrome-line: rgba(228,223,210,0.18);
-  --chrome-ink: #efece2;
   --chrome-dim: #b8b4a6;
   --signal: var(--gold);
 
-  /* spacing scale */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 22px;
-  --sp-6: 30px;
-
-  --radius:   5px;
-  --radius-sm:4px;
-
-  --serif: 'Noto Serif SC', 'Songti SC', serif;
-  --sans: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --cjk: var(--sans);
-
   --shadow-sm: none;
-  --shadow-md: 0 12px 32px rgba(32,36,44,0.14);
-  --shadow-lg: 0 18px 48px rgba(32,36,44,0.28);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -105,44 +67,8 @@ body {
   position: sticky; top: 0; z-index: 40;
   backdrop-filter: blur(18px);
 }
-.header-title { display: flex; align-items: center; gap: 11px; min-width: 0; text-decoration: none; }
-.terminal-tag {
-  width: 38px; height: 38px; display: grid; place-items: center;
-  background: var(--accent); color: #fdf9f0; border-radius: 3px;
-  font: 900 22px/1 var(--serif);
-  letter-spacing: 0;
-  flex-shrink: 0;
-}
-.header h1 {
-  display: flex; flex-direction: column;
-  color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  line-height: 1.25;
-}
-.header h1 strong { font: 700 17px/1.25 var(--serif); letter-spacing: 0.06em; }
-.header h1 small {
-  font: 500 10px/1.25 var(--sans);
-  color: var(--ink2); letter-spacing: 0.14em; text-transform: uppercase;
-}
+/* 品牌 / 模块导航 / 日期控件基础样式来自 shared/ui.css */
 .header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-left: auto; }
-.module-tabs {
-  display: inline-flex; align-items: center; gap: 2px;
-  border: 1px solid var(--hair); border-radius: 4px;
-  padding: 2px; background: var(--card); flex-shrink: 0;
-}
-.module-tabs a {
-  color: var(--ink2); text-decoration: none; font-size: 12px; font-weight: 700;
-  padding: 5px 11px; border-radius: 3px; white-space: nowrap; letter-spacing: 0;
-}
-.module-tabs a:hover { color: var(--ink); background: #f1ede1; }
-.module-tabs a.active {
-  color: #fdf9f0; background: var(--ink);
-  box-shadow: none;
-}
-.date-control {
-  display: inline-flex; align-items: center; gap: 8px;
-  color: var(--ink2); font-family: var(--sans); font-size: 12px;
-  letter-spacing: 0; white-space: nowrap;
-}
 .date-control input {
   height: 31px; min-width: 132px; border-radius: 3px;
   border: 1px solid var(--hair); background: var(--card);
@@ -483,6 +409,14 @@ tbody tr:last-child td { border-bottom: none; }
 .tl-swatch { width: 18px; height: 3px; border-radius: 2px; }
 .tl-name { font-size: 11.5px; color: var(--ink); }
 .tl-chg { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+
+/* 资金流估算值标注（真实主力净流入缺失时的推算口径） */
+.est-mark {
+  display: inline-block; margin-left: 3px; padding: 0 3px;
+  font: 700 9px/1.5 var(--mono); font-style: normal;
+  color: var(--gold); border: 1px solid rgba(154,123,47,0.4); border-radius: 2px;
+  vertical-align: 1px; cursor: help;
+}
 
 /* ============================================================
    FLASH / UPDATE ANIMATION

@@ -61,7 +61,7 @@ DEFAULT_CONFIG = {
     "chanlun": {
         "bars": 220,
         "westock_kline_limit": 260,
-        "min_stroke_gap": 4,
+        "engine": "rs-czsc",
     },
 }
 
@@ -308,6 +308,29 @@ def parse_iso_date(raw: Any) -> dt.date | None:
         return None
 
 
+def parse_iso_datetime(raw: Any) -> dt.datetime | None:
+    if raw is None:
+        return None
+    if isinstance(raw, dt.datetime):
+        return raw
+    if isinstance(raw, dt.date):
+        return dt.datetime.combine(raw, dt.time())
+    text = str(raw).strip()
+    if not text:
+        return None
+    if re.fullmatch(r"\d{8}", text):
+        text = f"{text[:4]}-{text[4:6]}-{text[6:8]}"
+    text = text.replace("/", "-")
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", text[:10]) and len(text) <= 10:
+        return dt.datetime.combine(dt.date.fromisoformat(text[:10]), dt.time())
+    text = text.replace("T", " ")[:19]
+    try:
+        return dt.datetime.fromisoformat(text)
+    except Exception:
+        d = parse_iso_date(text)
+        return dt.datetime.combine(d, dt.time()) if d else None
+
+
 def parse_request_date(value: str | None) -> dt.date:
     if value:
         parsed = parse_iso_date(value)
@@ -354,11 +377,13 @@ def ema(values: list[float], span: int) -> list[float]:
 
 
 def macd(closes: list[float]) -> tuple[float, float, float]:
+    # 返回原始精度：低价标的（如 1~3 元的 ETF）的 MACD 柱在两位小数下会被抹成 0，
+    # 展示层需要几位小数由调用方自行舍入。
     if len(closes) < 2:
         return 0.0, 0.0, 0.0
     dif = [a - b for a, b in zip(ema(closes, 12), ema(closes, 26))]
     dea = ema(dif, 9)
-    return round(dif[-1], 2), round(dea[-1], 2), round(2 * (dif[-1] - dea[-1]), 2)
+    return dif[-1], dea[-1], 2 * (dif[-1] - dea[-1])
 
 
 def date_rows(rows: list[dict]) -> list[tuple[dt.date, dict]]:
@@ -713,7 +738,7 @@ def project_snapshot_to_date(data: dict, requested: dt.date) -> dict:
     for item in sectors[:3]:
         closes = item.get("_techKline") or item.get("kline", [])
         r6 = rsi(closes)
-        dif, dea, m = macd(closes)
+        dif, dea, m = (round(v, 4) for v in macd(closes))
         signal = "BULL" if m > 0 and r6 >= 50 else "BEAR" if m < 0 and r6 <= 45 else "NEUTRAL"
         tech.append({"name": item["name"], "rsi6": r6, "dif": dif, "dea": dea, "macd": m, "signal": signal})
     if tech:
@@ -877,18 +902,32 @@ def fetch_westock_candidate_rows(target: dt.date, cfg: dict) -> tuple[list[dict]
     return list(candidates.values()), observed_at
 
 
-def westock_seed_score(item: dict) -> float:
+# 板块强度评分参数。两档口径：seed 用于候选召回（偏灵敏），market 用于终榜排序（偏稳健）。
+# today 用带符号涨幅——大跌板块不再被计入"强"；换手提供活跃度；d5/d20 只对正收益加分
+# （趋势延续确认）；热度榜排名与真实主力净流入（万元）作外部确认项。
+SECTOR_SCORE_PROFILES = {
+    "seed": {"today": 2.8, "turnover": 1.35, "d5": 0.65, "d20": 0.25, "hot_top": 70.0, "hot_div": 8.0, "flow_div": 30000.0},
+    "market": {"today": 2.4, "turnover": 1.25, "d5": 0.55, "d20": 0.22, "hot_top": 75.0, "hot_div": 12.0, "flow_div": 35000.0},
+}
+
+
+def sector_strength_score(item: dict, profile: str) -> float:
+    w = SECTOR_SCORE_PROFILES[profile]
     hot_rank = safe_float(item.get("_hotRank"), 9999)
-    hot_boost = max(0.0, 70.0 - hot_rank) / 8.0 if hot_rank < 9999 else 0.0
-    flow_boost = max(safe_float(item.get("_mainNetInflow")), 0.0) / 30000.0
+    hot_boost = max(0.0, w["hot_top"] - hot_rank) / w["hot_div"] if hot_rank < 9999 else 0.0
+    flow_boost = max(safe_float(item.get("_mainNetInflow")), 0.0) / w["flow_div"]
     return (
-        abs(safe_float(item.get("today"))) * 2.8
-        + safe_float(item.get("turnover")) * 1.35
-        + max(safe_float(item.get("d5")), 0.0) * 0.65
-        + max(safe_float(item.get("d20")), 0.0) * 0.25
+        safe_float(item.get("today")) * w["today"]
+        + safe_float(item.get("turnover")) * w["turnover"]
+        + max(safe_float(item.get("d5")), 0.0) * w["d5"]
+        + max(safe_float(item.get("d20")), 0.0) * w["d20"]
         + hot_boost
         + flow_boost
     )
+
+
+def westock_seed_score(item: dict) -> float:
+    return sector_strength_score(item, "seed")
 
 
 def build_westock_sector_item(candidate: dict, hist: list[tuple[dt.date, dict]], trade_date: dt.date) -> dict | None:
@@ -937,17 +976,7 @@ def build_westock_sector_item(candidate: dict, hist: list[tuple[dt.date, dict]],
 
 
 def westock_market_score(item: dict) -> float:
-    hot_rank = safe_float(item.get("_hotRank"), 9999)
-    hot_boost = max(0.0, 75.0 - hot_rank) / 12.0 if hot_rank < 9999 else 0.0
-    flow_boost = max(safe_float(item.get("_mainNetInflow")), 0.0) / 35000.0
-    return (
-        abs(safe_float(item.get("today"))) * 2.4
-        + safe_float(item.get("turnover")) * 1.25
-        + max(safe_float(item.get("d5")), 0.0) * 0.55
-        + max(safe_float(item.get("d20")), 0.0) * 0.22
-        + hot_boost
-        + flow_boost
-    )
+    return sector_strength_score(item, "market")
 
 
 def estimate_sector_flow(sector: dict, pct_key: str, scale: float) -> float:
@@ -960,16 +989,21 @@ def estimate_sector_flow(sector: dict, pct_key: str, scale: float) -> float:
 
 
 def build_westock_flows(sectors: list[dict]) -> list[dict]:
+    """真实主力净流入优先；缺失时按 涨跌幅×换手 估算，并用 est 标记告知前端（单位均为万元）。"""
     flows = []
     for sector in sectors:
         if sector.get("_mainNetInflow") is not None:
             val = round(safe_float(sector.get("_mainNetInflow")), 0)
+            est = False
         else:
             val = estimate_sector_flow(sector, "today", 1800)
+            est = True
         if sector.get("_mainNetInflow5d") is not None:
             val5 = round(safe_float(sector.get("_mainNetInflow5d")), 0)
+            est5 = False
         else:
             val5 = estimate_sector_flow(sector, "d5", 1400)
+            est5 = True
         val20 = estimate_sector_flow(sector, "d20", 900)
         flows.append(
             {
@@ -978,6 +1012,9 @@ def build_westock_flows(sectors: list[dict]) -> list[dict]:
                 "val": val,
                 "val5": val5,
                 "val20": val20,
+                "est": est,
+                "est5": est5,
+                "est20": True,  # 20 日无真实来源，恒为估算
             }
         )
     flows.sort(key=lambda item: item["val"], reverse=True)
@@ -1031,12 +1068,20 @@ def build_market_signals(data: dict) -> None:
             "cls": "up" if best_flow and safe_float(best_flow.get("val")) >= 0 else "flat",
             "tag": "FLOW",
             "text": (
-                f'{best_flow["name"]} 1日资金强度居前，'
-                f'{best_flow5["name"]} 5日资金延续性最好。'
+                (
+                    f'{best_flow["name"]} 1日资金强度居前，'
+                    f'{best_flow5["name"]} 5日资金延续性最好。'
+                    + ("（含估算值：按涨跌幅×换手推算，非真实主力净流入）" if best_flow.get("est") else "")
+                )
                 if best_flow and best_flow5
                 else "资金维度以板块涨跌、换手和可用主力净流入共同估算。"
             ),
-            "val": f'{safe_float(best_flow.get("val"))/10000:+.1f}亿' if best_flow else "FLOW",
+            # 只有真实主力净流入才展示金额，估算值不冒充真实资金
+            "val": (
+                f'{safe_float(best_flow.get("val"))/10000:+.1f}亿'
+                if best_flow and not best_flow.get("est")
+                else "估算"
+            ),
         },
         {
             "dot": "bullish" if safe_float(strongest_20.get("d20")) > 0 else "neutral",
@@ -1149,7 +1194,7 @@ def finalize_westock_market_view(data: dict, cfg: dict) -> None:
     for item in sectors[:3]:
         closes = item.get("_techKline") or item.get("kline", [])
         r6 = rsi(closes)
-        dif, dea, m = macd(closes)
+        dif, dea, m = (round(v, 4) for v in macd(closes))
         signal = "BULL" if m > 0 and r6 >= 50 else "BEAR" if m < 0 and r6 <= 45 else "NEUTRAL"
         tech.append({"name": item["name"], "rsi6": r6, "dif": dif, "dea": dea, "macd": m, "signal": signal})
     data["tech"] = tech
@@ -2039,7 +2084,7 @@ def chanlun_search(q: str, market: str, cfg: dict) -> list[dict]:
 
 def chanlun_cache_path(symbol: str, period: str, requested: dt.date) -> Path:
     safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", normalize_chanlun_symbol(symbol))
-    return CACHE_DIR / f"chanlun_{safe}_{period}_{requested.isoformat()}.json"
+    return CACHE_DIR / f"chanlun_czsc_v2_{safe}_{period}_{requested.isoformat()}.json"
 
 
 def load_chanlun_cache(symbol: str, period: str, requested: dt.date) -> dict | None:
@@ -2064,8 +2109,8 @@ def write_chanlun_cache(symbol: str, period: str, requested: dt.date, data: dict
 
 
 def row_to_bar(row: dict, d: dt.date | None = None) -> dict | None:
-    date = d or parse_iso_date(get_field(row, "date", "日期", "时间"))
-    if not date:
+    stamp = dt.datetime.combine(d, dt.time()) if d else parse_iso_datetime(get_field(row, "date", "日期", "时间"))
+    if not stamp:
         return None
     open_v = safe_float(get_field(row, "open", "开盘"))
     close_v = safe_float(get_field(row, "last", "close", "收盘", "最新价"))
@@ -2074,8 +2119,9 @@ def row_to_bar(row: dict, d: dt.date | None = None) -> dict | None:
     volume = safe_float(get_field(row, "volume", "成交量"), 0.0)
     if not (open_v and close_v and high_v and low_v):
         return None
+    date_text = stamp.isoformat(sep=" ", timespec="minutes") if (stamp.hour or stamp.minute or stamp.second) else stamp.date().isoformat()
     return {
-        "date": date.isoformat(),
+        "date": date_text,
         "open": round(open_v, 4),
         "high": round(high_v, 4),
         "low": round(low_v, 4),
@@ -2110,7 +2156,10 @@ def aggregate_weekly_bars(bars: list[dict]) -> list[dict]:
 def fetch_westock_chanlun_bars(symbol: str, period: str, target: dt.date, cfg: dict) -> list[dict]:
     cl_cfg = cfg.get("chanlun", {})
     limit = int(cl_cfg.get("westock_kline_limit", cl_cfg.get("bars", 220)))
-    rows = date_rows(first_table_rows(westock_run(["kline", symbol, "--period", period, "--limit", str(limit)], cfg)))
+    rows_raw = first_table_rows(westock_run(["kline", symbol, "--period", period, "--limit", str(limit)], cfg))
+    if period in {"30m", "30min"} and not any(":" in str(get_field(row, "date", "日期", "时间") or "") for row in rows_raw):
+        raise RuntimeError("WeStock did not return intraday timestamps for 30m")
+    rows = date_rows(rows_raw)
     bars = []
     for d, row in rows_until(rows, target):
         bar = row_to_bar(row, d)
@@ -2127,6 +2176,24 @@ def fetch_akshare_chanlun_bars(symbol: str, period: str, target: dt.date, cfg: d
     market = chanlun_market(symbol)
     low = symbol.lower()
     rows: list[dict] = []
+    if period in {"30m", "30min"}:
+        start_dt = f"{ymd(start)} 09:30:00"
+        end_dt = f"{ymd(target)} 15:30:00"
+        if market == "指数":
+            rows = records(ak.index_zh_a_hist_min_em(symbol=low[2:], period="30", start_date=start_dt, end_date=end_dt))
+        elif market == "港股":
+            code = low[2:].zfill(5)
+            rows = records(ak.stock_hk_hist_min_em(symbol=code, period="30", start_date=start_dt, end_date=end_dt, adjust="qfq"))
+        else:
+            rows = records(ak.stock_zh_a_hist_min_em(symbol=low[2:], period="30", start_date=start_dt, end_date=end_dt, adjust="qfq"))
+        out = []
+        for row in rows:
+            d = parse_iso_date(get_field(row, "日期", "date", "时间"))
+            if d and d <= target:
+                bar = row_to_bar(row)
+                if bar:
+                    out.append(bar)
+        return out[-bars_limit:]
     if market == "指数":
         rows = records(ak.stock_zh_index_daily_em(symbol=low, start_date=ymd(start), end_date=ymd(target)))
         bars = [bar for d, row in date_rows(rows) if (bar := row_to_bar(row, d))]
@@ -2470,24 +2537,633 @@ def chanlun_trend(segs: list[dict], pivots: list[dict]) -> dict:
     return {"kind": "range", "text": "盘整", "detail": "结构尚不充分"}
 
 
-def analyze_chanlun_bars(bars: list[dict], cfg: dict) -> dict:
-    merged = chanlun_merge_bars(bars)
-    fractals = chanlun_fractals(merged)
-    pts = chanlun_strokes(fractals, int(cfg.get("chanlun", {}).get("min_stroke_gap", 4)))
-    segs = chanlun_segments(pts)
-    pivots = chanlun_pivots(pts)
-    macd_data = chanlun_macd_series([safe_float(bar.get("close")) for bar in bars])
-    divergence = chanlun_divergence(pts, segs, macd_data)
-    signals = chanlun_signals(pts, segs, pivots, macd_data)
-    trend = chanlun_trend(segs, pivots)
-    tops = sum(1 for item in fractals if item["type"] == "top")
-    bottoms = sum(1 for item in fractals if item["type"] == "bottom")
+def load_czsc_core():
+    try:
+        import rs_czsc
+        from rs_czsc._rs_czsc import CZSC, RawBar, Freq, Direction, Mark, ZS, BarGenerator, Market
+
+        return {
+            "CZSC": CZSC,
+            "RawBar": RawBar,
+            "Freq": Freq,
+            "Direction": Direction,
+            "Mark": Mark,
+            "ZS": ZS,
+            "BarGenerator": BarGenerator,
+            "Market": Market,
+            "rs_czsc": rs_czsc,
+            "module": "rs_czsc._rs_czsc",
+        }
+    except Exception as exc:
+        raise RuntimeError(
+            "CZSC core is not available. Install with: python3 -m pip install --user --break-system-packages --no-deps rs-czsc"
+        ) from exc
+
+
+def czsc_period_freq(core: dict, period: str):
+    freq = core["Freq"]
+    if period in {"30m", "30min", "30分钟"}:
+        return freq.F30
+    return freq.W if period == "week" else freq.D
+
+
+def czsc_freq_label(period: str) -> str:
+    if period in {"30m", "30min", "30分钟"}:
+        return "30分钟"
+    if period == "week":
+        return "周线"
+    return "日线"
+
+
+def czsc_dt_text(value: Any) -> str:
+    if isinstance(value, dt.datetime):
+        if value.hour or value.minute or value.second:
+            return value.isoformat(sep=" ", timespec="minutes")
+        return value.date().isoformat()
+    if isinstance(value, dt.date):
+        return value.isoformat()
+    if hasattr(value, "date"):
+        try:
+            return value.date().isoformat()
+        except Exception:
+            pass
+    text = str(value or "")
+    if re.match(r"^\d{4}-\d{2}-\d{2}", text):
+        return text[:10]
+    return text
+
+
+def enum_text(value: Any) -> str:
+    if hasattr(value, "value"):
+        return str(value.value)
+    return str(value)
+
+
+def czsc_direction(value: Any) -> int:
+    text = enum_text(value)
+    return 1 if text in {"向上", "Up", "Direction.Up"} or text.endswith(".Up") else -1
+
+
+def czsc_mark_type(value: Any) -> str:
+    text = enum_text(value)
+    return "bottom" if text in {"底分型", "D", "Mark.D"} or text.endswith(".D") else "top"
+
+
+def build_czsc_raw_bars(symbol: str, period: str, bars: list[dict], core: dict) -> list[Any]:
+    freq = czsc_period_freq(core, period)
+    raw_bars = []
+    for idx, bar in enumerate(bars):
+        stamp = parse_iso_datetime(bar.get("date")) or dt.datetime.combine(dt.date.today(), dt.time())
+        raw_bars.append(
+            core["RawBar"](
+                symbol=symbol,
+                dt=stamp,
+                freq=freq,
+                open=safe_float(bar.get("open")),
+                close=safe_float(bar.get("close")),
+                high=safe_float(bar.get("high")),
+                low=safe_float(bar.get("low")),
+                vol=safe_float(bar.get("volume")),
+                amount=safe_float(bar.get("amount")),
+                id=idx,
+            )
+        )
+    return raw_bars
+
+
+def czsc_kidx(date_text: str, date_index: dict[str, int], fallback: int = 0) -> int:
+    text = str(date_text)
+    return int(date_index.get(text, date_index.get(text[:10], fallback)))
+
+
+def serialize_czsc_fx(fx: Any, date_index: dict[str, int]) -> dict:
+    typ = czsc_mark_type(getattr(fx, "mark", ""))
+    date_text = czsc_dt_text(getattr(fx, "dt", ""))
     return {
-        "merged": merged,
-        "fractals": fractals,
+        "type": typ,
+        "mark": enum_text(getattr(fx, "mark", "")),
+        "name": "底分型" if typ == "bottom" else "顶分型",
+        "date": date_text,
+        "kIdx": czsc_kidx(date_text, date_index),
+        "price": round(safe_float(getattr(fx, "fx", 0)), 4),
+        "high": round(safe_float(getattr(fx, "high", 0)), 4),
+        "low": round(safe_float(getattr(fx, "low", 0)), 4),
+        "power": str(getattr(fx, "power_str", "")),
+        "hasZs": bool(getattr(fx, "has_zs", False)),
+    }
+
+
+def serialize_czsc_bi(bi: Any, idx: int, date_index: dict[str, int]) -> dict:
+    sdt = czsc_dt_text(getattr(bi, "sdt", ""))
+    edt = czsc_dt_text(getattr(bi, "edt", ""))
+    direction = czsc_direction(getattr(bi, "direction", ""))
+    fx_a = serialize_czsc_fx(getattr(bi, "fx_a"), date_index)
+    fx_b = serialize_czsc_fx(getattr(bi, "fx_b"), date_index)
+    return {
+        "index": idx,
+        "direction": enum_text(getattr(bi, "direction", "")),
+        "dir": direction,
+        "sdt": sdt,
+        "edt": edt,
+        "fromK": fx_a["kIdx"],
+        "toK": fx_b["kIdx"],
+        "high": round(safe_float(getattr(bi, "high", 0)), 4),
+        "low": round(safe_float(getattr(bi, "low", 0)), 4),
+        "power": round(safe_float(getattr(bi, "power", 0)), 4),
+        "powerPrice": round(safe_float(getattr(bi, "power_price", 0)), 4),
+        "powerVolume": round(safe_float(getattr(bi, "power_volume", 0)), 2),
+        "change": round(safe_float(getattr(bi, "change", 0)), 6),
+        "length": int(safe_float(getattr(bi, "length", 0))),
+        "rsq": round(safe_float(getattr(bi, "rsq", 0)), 4),
+        "angle": round(safe_float(getattr(bi, "angle", 0)), 2),
+        "fxA": fx_a,
+        "fxB": fx_b,
+    }
+
+
+def _czsc_zs_seed(bis: list[Any], idx: int, core: dict) -> Any | None:
+    """尝试以 bis[idx:idx+3] 构成有效中枢，返回 ZS 对象或 None。"""
+    try:
+        zs = core["ZS"](bis[idx : idx + 3])
+        valid_attr = getattr(zs, "is_valid", False)
+        if bool(valid_attr() if callable(valid_attr) else valid_attr):
+            return zs
+    except Exception:
+        pass
+    return None
+
+
+def build_czsc_zs(bis: list[Any], serialized_bis: list[dict], core: dict) -> list[dict]:
+    """扩展合并式中枢：三笔重叠成立后（ZG/ZD 由前三笔确定），
+    后续笔只要与 [ZD, ZG] 区间有重叠就并入同一中枢；中枢之间不重叠。
+    旧实现对每个 3 笔滑动窗口都输出一个"候选"，会产生大量互相重叠的伪中枢。"""
+    out = []
+    idx = 0
+    n = min(len(bis), len(serialized_bis))
+    while idx + 2 < n:
+        zs = _czsc_zs_seed(bis, idx, core)
+        if zs is None:
+            idx += 1
+            continue
+        zg = round(safe_float(getattr(zs, "zg", 0)), 4)
+        zd = round(safe_float(getattr(zs, "zd", 0)), 4)
+        end = idx + 2
+        while end + 1 < n:
+            nxt = serialized_bis[end + 1]
+            if nxt["low"] <= zg and nxt["high"] >= zd:
+                end += 1
+            else:
+                break
+        span = serialized_bis[idx : end + 1]
+        first, last = span[0], span[-1]
+        out.append(
+            {
+                "index": len(out),
+                "fromBi": idx,
+                "toBi": end,
+                "sdt": czsc_dt_text(getattr(zs, "sdt", first["sdt"])) or first["sdt"],
+                "edt": last["edt"],
+                "startK": first["fromK"],
+                "endK": last["toK"],
+                "zg": zg,
+                "zd": zd,
+                "zz": round((zg + zd) / 2, 4),
+                "gg": round(max(b["high"] for b in span), 4),
+                "dd": round(min(b["low"] for b in span), 4),
+                "direction": f'{enum_text(getattr(zs, "sdir", ""))} / {enum_text(getattr(zs, "edir", ""))}',
+                "bis": list(range(idx, end + 1)),
+                "strokes": end - idx + 1,
+            }
+        )
+        idx = end + 1
+    return out
+
+
+def summarize_czsc_object(cz: Any, core: dict) -> dict:
+    fxs = list(getattr(cz, "fx_list", []) or [])
+    bis = list(getattr(cz, "bi_list", []) or [])
+    # 与 build_czsc_zs 同口径：扩展合并、互不重叠地计数中枢
+    zs_count = 0
+    idx = 0
+    while idx + 2 < len(bis):
+        zs = _czsc_zs_seed(bis, idx, core)
+        if zs is None:
+            idx += 1
+            continue
+        zg = safe_float(getattr(zs, "zg", 0))
+        zd = safe_float(getattr(zs, "zd", 0))
+        end = idx + 2
+        while end + 1 < len(bis):
+            nxt = bis[end + 1]
+            if safe_float(getattr(nxt, "low", 0)) <= zg and safe_float(getattr(nxt, "high", 0)) >= zd:
+                end += 1
+            else:
+                break
+        zs_count += 1
+        idx = end + 1
+    return {
+        "rawBars": len(list(getattr(cz, "bars_raw", []) or [])),
+        "fxs": len(fxs),
+        "bis": len(bis),
+        "zs": zs_count,
+        "ubiBars": len(list(getattr(cz, "bars_ubi", []) or [])),
+    }
+
+
+def raw_bar_to_plain(bar: Any) -> dict:
+    date_text = czsc_dt_text(getattr(bar, "dt", ""))
+    return {
+        "date": date_text,
+        "open": round(safe_float(getattr(bar, "open", 0)), 4),
+        "high": round(safe_float(getattr(bar, "high", 0)), 4),
+        "low": round(safe_float(getattr(bar, "low", 0)), 4),
+        "close": round(safe_float(getattr(bar, "close", 0)), 4),
+        "volume": round(safe_float(getattr(bar, "vol", 0)), 2),
+    }
+
+
+def build_czsc_multilevel(raw_bars: list[Any], period: str, core: dict) -> dict:
+    if not raw_bars:
+        return {"enabled": False, "levels": [], "message": "无K线数据"}
+    base = czsc_freq_label(period)
+    if base == "30分钟":
+        freqs = ["日线", "周线"]
+    elif base == "日线":
+        freqs = ["周线", "月线"]
+    elif base == "周线":
+        freqs = ["月线", "年线"]
+    else:
+        freqs = []
+    levels = []
+    try:
+        bg = core["BarGenerator"](base, freqs, 5000, core["Market"].AShare)
+        for bar in raw_bars:
+            bg.update(bar)
+        for name, items in (bg.bars or {}).items():
+            items = list(items or [])
+            if not items:
+                levels.append({"freq": name, "bars": 0, "stats": {}, "latest": None})
+                continue
+            try:
+                cz = core["CZSC"](items, max_bi_num=80)
+                stats = summarize_czsc_object(cz, core)
+            except Exception as exc:
+                stats = {"error": f"{type(exc).__name__}: {str(exc)[:120]}"}
+            levels.append(
+                {
+                    "freq": name,
+                    "bars": len(items),
+                    "stats": stats,
+                    "latest": raw_bar_to_plain(items[-1]),
+                }
+            )
+        return {"enabled": True, "baseFreq": base, "levels": levels}
+    except Exception as exc:
+        return {"enabled": False, "levels": [], "message": f"{type(exc).__name__}: {str(exc)[:160]}"}
+
+
+def chanlun_capabilities() -> dict:
+    features = []
+    signals_sample = []
+    signal_count = 0
+    try:
+        core = load_czsc_core()
+        rs = core["rs_czsc"]
+        try:
+            signals_sample = list(rs.list_all_signals() or [])
+            signal_count = len(signals_sample)
+        except Exception:
+            signals_sample = []
+            signal_count = 0
+        features = [
+            {"key": "core", "name": "核心缠论分析", "status": "ok", "detail": "CZSC / RawBar / FX / BI / ZS 已接入"},
+            {"key": "bar_generator", "name": "K线合成与多级别", "status": "ok", "detail": "BarGenerator 已接入，支持从当前周期合成更高周期"},
+            {"key": "signals_catalog", "name": "信号目录", "status": "ok" if signal_count else "partial", "detail": f"可读取 {signal_count} 个 Rust 信号定义"},
+            {"key": "signal_generation", "name": "信号生成", "status": "ok", "detail": "已提供本地 generate_czsc_signals 兼容门面，基于CZSC结构与信号目录生成结果"},
+            {"key": "weight_backtest", "name": "权重回测", "status": "ok" if hasattr(rs, "WeightBacktest") else "missing", "detail": "WeightBacktest 可用，需传入 dt/symbol/weight/price 权重数据"},
+            {"key": "research", "name": "策略研究/回放", "status": "ok" if hasattr(rs, "run_research") and hasattr(rs, "run_replay") else "missing", "detail": "run_research / run_replay 可用，需传入策略 positions 与 signals_config"},
+            {"key": "visualization", "name": "ECharts / Plotly 可视化", "status": "ok", "detail": "已提供本地 to_echarts/to_plotly 兼容导出，生成可打开的HTML图表"},
+        ]
+        return {
+            "engine": "rs-czsc",
+            "module": core["module"],
+            "features": features,
+            "signals": {"count": signal_count, "sample": signals_sample[:12]},
+        }
+    except Exception as exc:
+        return {
+            "engine": "unavailable",
+            "module": "",
+            "features": [{"key": "core", "name": "核心缠论分析", "status": "missing", "detail": str(exc)[:180]}],
+            "signals": {"count": 0, "sample": []},
+        }
+
+
+def chanlun_signal_catalog(q: str = "", limit: int = 80) -> dict:
+    cap = chanlun_capabilities()
+    try:
+        signals = list(load_czsc_core()["rs_czsc"].list_all_signals() or [])
+    except Exception:
+        signals = []
+    query = str(q or "").strip().lower()
+    if query:
+        signals = [
+            item for item in signals
+            if query in str(item.get("name", "")).lower()
+            or query in str(item.get("namespace", "")).lower()
+            or query in str(item.get("category", "")).lower()
+            or query in str(item.get("param_template", "")).lower()
+        ]
+    return {
+        "meta": {"query": q, "count": len(signals), "engine": cap.get("engine")},
+        "items": signals[: max(1, min(500, int(limit or 80)))],
+    }
+
+
+DEFAULT_CZSC_SIGNAL_SPECS = [
+    "czsc._native.signals.bar.bar_end_V230331",
+    "czsc._native.signals.cxt.cxt_bi_status_V230101",
+]
+
+
+def normalize_signal_spec(spec: str) -> str:
+    text = str(spec or "").strip()
+    if not text:
+        return ""
+    return text.split(".")[-1]
+
+
+def find_signal_doc(name: str, catalog: list[dict]) -> dict:
+    low = name.lower()
+    for item in catalog:
+        item_name = str(item.get("name") or "").lower()
+        template = str(item.get("param_template") or "").lower()
+        if low == item_name or low in item_name or low in template:
+            return item
+    return {"name": name, "namespace": "", "category": "compat", "param_template": ""}
+
+
+def generate_czsc_signals_compat(data: dict, signal_specs: list[str] | None = None) -> dict:
+    analysis = data.get("analysis", {})
+    bars = data.get("bars", [])
+    meta = data.get("meta", {})
+    period_label = czsc_freq_label(str(meta.get("period") or "day"))
+    specs = [s for s in (signal_specs or DEFAULT_CZSC_SIGNAL_SPECS) if str(s).strip()]
+    catalog = chanlun_signal_catalog("", 500).get("items", [])
+    latest_bar = bars[-1] if bars else {}
+    latest_bi = (analysis.get("bis") or [])[-1] if analysis.get("bis") else None
+    latest_fx = (analysis.get("fxs") or [])[-1] if analysis.get("fxs") else None
+    latest_zs = (analysis.get("zs") or [])[-1] if analysis.get("zs") else None
+    rows = []
+    for spec in specs:
+        name = normalize_signal_spec(spec)
+        doc = find_signal_doc(name, catalog)
+        low = name.lower()
+        if "bar_end" in low:
+            value = f"{period_label}_K线结束_已闭合"
+            detail = f'最新K线时间 {latest_bar.get("date", "-")}'
+            v1, v2, v3 = "已闭合", str(latest_bar.get("date", "-")), "任意"
+            score = 100
+        elif "cxt_bi_status" in low:
+            if latest_bi:
+                direction = "向上" if latest_bi.get("dir") == 1 else "向下"
+                value = f"{period_label}_笔状态_{direction}"
+                detail = f'最新BI {latest_bi.get("sdt")} ~ {latest_bi.get("edt")}，力度 {latest_bi.get("power")}'
+                v1, v2, v3 = direction, f'BI{latest_bi.get("index")}', "已成笔"
+                score = 80
+            else:
+                value = f"{period_label}_笔状态_未成笔"
+                detail = "当前样本尚未形成CZSC有效笔"
+                v1, v2, v3 = "未成笔", "任意", "任意"
+                score = 0
+        elif "cxt" in low and latest_zs:
+            value = f"{period_label}_中枢状态_有效"
+            detail = f'最近ZS区间 ZD {latest_zs.get("zd")} / ZG {latest_zs.get("zg")}'
+            v1, v2, v3 = "有中枢", f'ZS{latest_zs.get("index")}', "任意"
+            score = 70
+        elif "fx" in low and latest_fx:
+            value = f'{period_label}_分型_{latest_fx.get("name", "已识别")}'
+            detail = f'最近分型 {latest_fx.get("date")} @ {latest_fx.get("price")}'
+            v1, v2, v3 = latest_fx.get("name", "分型"), str(latest_fx.get("date", "-")), "任意"
+            score = 60
+        else:
+            value = f"{period_label}_目录信号_未适配计算"
+            detail = "该信号存在于目录或请求中，但当前兼容门面尚未实现专用计算逻辑"
+            v1, v2, v3 = "未适配", "任意", "任意"
+            score = 0
+        rows.append(
+            {
+                "source": spec,
+                "name": doc.get("name") or name,
+                "namespace": doc.get("namespace", ""),
+                "category": doc.get("category", "compat"),
+                "paramTemplate": doc.get("param_template", ""),
+                "key": f"{period_label}_{doc.get('name') or name}",
+                "value": value,
+                "v1": v1,
+                "v2": v2,
+                "v3": v3,
+                "score": score,
+                "detail": detail,
+                "status": "ok" if score else "compat",
+            }
+        )
+    return {
+        "status": "ok",
+        "engine": "generate_czsc_signals_compat",
+        "freqs": [period_label],
+        "signalsSeq": specs,
+        "count": len(rows),
+        "items": rows,
+    }
+
+
+def compact_chanlun_payload(data: dict) -> dict:
+    analysis = data.get("analysis", {})
+    return {
+        "meta": data.get("meta", {}),
+        "stock": data.get("stock", {}),
+        "bars": data.get("bars", []),
+        "fxs": analysis.get("fxs", []),
+        "bis": analysis.get("bis", []),
+        "zs": analysis.get("zs", []),
+        "stats": analysis.get("stats", {}),
+        "signals": analysis.get("generatedSignals", {}),
+    }
+
+
+def build_echarts_html(data: dict) -> str:
+    payload = compact_chanlun_payload(data)
+    title = f"{payload['stock'].get('name', '')} CZSC ECharts"
+    safe_payload = json.dumps(payload, ensure_ascii=False)
+    return f"""<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>{html_lib.escape(title)}</title>
+<style>body{{margin:0;background:#f3f1ea;color:#20242c;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}}#chart{{height:760px}}.meta{{padding:14px 18px;border-bottom:1px solid #ddd6c8}}</style>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script></head>
+<body><div class="meta"><b>{html_lib.escape(title)}</b><span id="meta"></span></div><div id="chart"></div>
+<script>
+const payload = {safe_payload};
+document.getElementById('meta').textContent = ' · ' + payload.meta.tradeDate + ' · ' + payload.bars.length + ' bars';
+const dates = payload.bars.map(x => x.date);
+const kdata = payload.bars.map(x => [x.open, x.close, x.low, x.high]);
+const fxTop = payload.fxs.filter(x => x.type === 'top').map(x => [x.date, x.price]);
+const fxBottom = payload.fxs.filter(x => x.type === 'bottom').map(x => [x.date, x.price]);
+const biSeries = payload.bis.map((bi, idx) => ({{type:'line', name:'BI'+idx, data:[[bi.fxA.date, bi.fxA.price],[bi.fxB.date, bi.fxB.price]], showSymbol:false, lineStyle:{{width:2,color:'#2c4a73'}}, tooltip:{{show:false}}}}));
+const markAreas = payload.zs.map(z => [{{xAxis: payload.bars[z.startK]?.date, yAxis: z.zg}}, {{xAxis: payload.bars[z.endK]?.date, yAxis: z.zd}}]);
+const chart = echarts.init(document.getElementById('chart'));
+chart.setOption({{
+  animation: false,
+  tooltip: {{trigger:'axis', axisPointer:{{type:'cross'}}}},
+  legend: {{top: 8}},
+  grid: {{left:60,right:70,top:60,bottom:90}},
+  dataZoom: [{{type:'inside'}}, {{type:'slider', bottom:30}}],
+  xAxis: {{type:'category', data:dates, boundaryGap:true, axisLine:{{onZero:false}}}},
+  yAxis: {{scale:true, splitLine:{{lineStyle:{{color:'#e8e0d2'}}}}}},
+  series: [
+    {{type:'candlestick', name:'K线', data:kdata, itemStyle:{{color:'#bf3a30', color0:'#1e8a5e', borderColor:'#bf3a30', borderColor0:'#1e8a5e'}}, markArea:{{silent:true,itemStyle:{{color:'rgba(154,123,47,.12)'}},data:markAreas}}}},
+    {{type:'scatter', name:'顶分型', data:fxTop, symbolSize:7, itemStyle:{{color:'#1e8a5e'}}}},
+    {{type:'scatter', name:'底分型', data:fxBottom, symbolSize:7, itemStyle:{{color:'#bf3a30'}}}},
+    ...biSeries
+  ]
+}});
+window.addEventListener('resize', () => chart.resize());
+</script></body></html>"""
+
+
+def build_plotly_html(data: dict) -> str:
+    payload = compact_chanlun_payload(data)
+    title = f"{payload['stock'].get('name', '')} CZSC Plotly"
+    safe_payload = json.dumps(payload, ensure_ascii=False)
+    return f"""<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>{html_lib.escape(title)}</title>
+<style>body{{margin:0;background:#f3f1ea;color:#20242c;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}}#chart{{height:760px}}.meta{{padding:14px 18px;border-bottom:1px solid #ddd6c8}}</style>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script></head>
+<body><div class="meta"><b>{html_lib.escape(title)}</b><span id="meta"></span></div><div id="chart"></div>
+<script>
+const payload = {safe_payload};
+document.getElementById('meta').textContent = ' · ' + payload.meta.tradeDate + ' · ' + payload.bars.length + ' bars';
+const x = payload.bars.map(b => b.date);
+const traces = [{{
+  type:'candlestick', name:'K线', x,
+  open: payload.bars.map(b => b.open), high: payload.bars.map(b => b.high),
+  low: payload.bars.map(b => b.low), close: payload.bars.map(b => b.close),
+  increasing:{{line:{{color:'#bf3a30'}}}}, decreasing:{{line:{{color:'#1e8a5e'}}}}
+}}];
+for (const bi of payload.bis) traces.push({{type:'scatter', mode:'lines', name:'BI', x:[bi.fxA.date, bi.fxB.date], y:[bi.fxA.price, bi.fxB.price], line:{{color:'#2c4a73', width:2}}, showlegend:false}});
+traces.push({{type:'scatter', mode:'markers', name:'顶分型', x:payload.fxs.filter(f=>f.type==='top').map(f=>f.date), y:payload.fxs.filter(f=>f.type==='top').map(f=>f.price), marker:{{color:'#1e8a5e', size:7}}}});
+traces.push({{type:'scatter', mode:'markers', name:'底分型', x:payload.fxs.filter(f=>f.type==='bottom').map(f=>f.date), y:payload.fxs.filter(f=>f.type==='bottom').map(f=>f.price), marker:{{color:'#bf3a30', size:7}}}});
+const shapes = payload.zs.map(z => ({{type:'rect', xref:'x', yref:'y', x0:payload.bars[z.startK]?.date, x1:payload.bars[z.endK]?.date, y0:z.zd, y1:z.zg, fillcolor:'rgba(154,123,47,.13)', line:{{color:'#9a7b2f', dash:'dot'}}, layer:'below'}}));
+Plotly.newPlot('chart', traces, {{title:'', paper_bgcolor:'#f3f1ea', plot_bgcolor:'#fffdf8', xaxis:{{rangeslider:{{visible:false}}}}, yaxis:{{fixedrange:false}}, shapes}}, {{responsive:true, displaylogo:false}});
+</script></body></html>"""
+
+
+def czsc_trend_from_bis(bis: list[dict], zs: list[dict]) -> dict:
+    if len(zs) >= 2:
+        prev, last = zs[-2], zs[-1]
+        if last["zd"] > prev["zg"]:
+            return {"kind": "up", "text": "上涨趋势", "detail": "CZSC中枢候选上移"}
+        if last["zg"] < prev["zd"]:
+            return {"kind": "down", "text": "下跌趋势", "detail": "CZSC中枢候选下移"}
+        return {"kind": "range", "text": "中枢震荡", "detail": "最近两个CZSC中枢候选区间重叠"}
+    if bis:
+        last = bis[-1]
+        return (
+            {"kind": "up", "text": "向上笔结构", "detail": f'最新一笔 {last["sdt"]} ~ {last["edt"]} 向上'}
+            if last.get("dir") == 1
+            else {"kind": "down", "text": "向下笔结构", "detail": f'最新一笔 {last["sdt"]} ~ {last["edt"]} 向下'}
+        )
+    return {"kind": "range", "text": "结构不足", "detail": "CZSC尚未形成有效笔"}
+
+
+def analyze_chanlun_bars(bars: list[dict], cfg: dict) -> dict:
+    core = load_czsc_core()
+    symbol = str(cfg.get("_chanlun_symbol") or "CZSC")
+    period = str(cfg.get("_chanlun_period") or "day")
+    raw_bars = build_czsc_raw_bars(symbol, period, bars, core)
+    cz = core["CZSC"](raw_bars, max_bi_num=max(50, int(cfg.get("chanlun", {}).get("bars", 220))))
+    date_index = {str(bar.get("date"))[:10]: idx for idx, bar in enumerate(bars)}
+    fxs = [serialize_czsc_fx(fx, date_index) for fx in list(getattr(cz, "fx_list", []) or [])]
+    bis_raw = list(getattr(cz, "bi_list", []) or [])
+    bis = [serialize_czsc_bi(bi, idx, date_index) for idx, bi in enumerate(bis_raw)]
+    zs = build_czsc_zs(bis_raw, bis, core)
+    macd_data = chanlun_macd_series([safe_float(bar.get("close")) for bar in bars])
+    trend = czsc_trend_from_bis(bis, zs)
+    tops = sum(1 for item in fxs if item["type"] == "top")
+    bottoms = sum(1 for item in fxs if item["type"] == "bottom")
+    ubi = []
+    for item in list(getattr(cz, "bars_ubi", []) or [])[-30:]:
+        date_text = czsc_dt_text(getattr(item, "dt", ""))
+        ubi.append(
+            {
+                "date": date_text,
+                "kIdx": czsc_kidx(date_text, date_index),
+                "open": round(safe_float(getattr(item, "open", 0)), 4),
+                "close": round(safe_float(getattr(item, "close", 0)), 4),
+                "high": round(safe_float(getattr(item, "high", 0)), 4),
+                "low": round(safe_float(getattr(item, "low", 0)), 4),
+                "volume": round(safe_float(getattr(item, "vol", 0)), 2),
+            }
+        )
+    pts = []
+    for bi in bis:
+        if not pts or pts[-1]["kIdx"] != bi["fxA"]["kIdx"]:
+            pts.append(
+                {
+                    "type": bi["fxA"]["type"],
+                    "kIdx": bi["fxA"]["kIdx"],
+                    "price": bi["fxA"]["price"],
+                    "date": bi["fxA"]["date"],
+                }
+            )
+        pts.append(
+            {
+                "type": bi["fxB"]["type"],
+                "kIdx": bi["fxB"]["kIdx"],
+                "price": bi["fxB"]["price"],
+                "date": bi["fxB"]["date"],
+            }
+        )
+
+    # 在 CZSC 笔端点序列上恢复线段 / 背驰 / 一二三类买卖点识别
+    # （czsc 迁移时这些能力曾被置空，规则实现见 chanlun_segments/chanlun_signals）
+    segs = chanlun_segments(pts)
+    # 中枢→pts 索引映射：第 i 笔起点为 pts[i]、终点为 pts[i+1]
+    signal_pivots = [
+        {
+            "zg": item["zg"],
+            "zd": item["zd"],
+            "fromPt": item["fromBi"],
+            "toPt": min(item["toBi"] + 1, max(len(pts) - 1, 0)),
+            "startK": item["startK"],
+            "endK": item["endK"],
+            "strokes": item.get("strokes", 3),
+        }
+        for item in zs
+    ]
+    signals = chanlun_signals(pts, segs, signal_pivots, macd_data) if pts and segs else []
+    divergence = chanlun_divergence(pts, segs, macd_data) if pts and segs else None
+    for sig in signals:
+        date_i = sig.get("kIdx")
+        if isinstance(date_i, int) and 0 <= date_i < len(bars):
+            sig["date"] = str(bars[date_i].get("date"))[:10]
+    return {
+        "engine": {
+            "name": "CZSC",
+            "module": core["module"],
+            "method": "CZSC(RawBar[])",
+            "source": "waditu/czsc core via rs-czsc",
+        },
+        "capabilities": chanlun_capabilities(),
+        "multiLevel": build_czsc_multilevel(raw_bars, period, core),
+        "rawBars": len(raw_bars),
+        "fractals": fxs,
+        "fxs": fxs,
         "pts": pts,
+        "bis": bis,
+        "ubi": ubi,
+        "zs": zs,
         "segs": segs,
-        "pivots": pivots,
+        "pivots": signal_pivots,
         "macd": macd_data,
         "divergence": divergence,
         "signals": signals,
@@ -2495,9 +3171,14 @@ def analyze_chanlun_bars(bars: list[dict], cfg: dict) -> dict:
         "stats": {
             "tops": tops,
             "bottoms": bottoms,
-            "strokes": max(0, len(pts) - 1),
+            "fxs": len(fxs),
+            "bis": len(bis),
+            "strokes": len(bis),
             "segments": len(segs),
-            "pivots": len(pivots),
+            "zs": len(zs),
+            "pivots": len(zs),
+            "signals": len(signals),
+            "ubiBars": len(ubi),
         },
     }
 
@@ -2508,71 +3189,80 @@ def fmt_chanlun_price(value: Any) -> str:
 
 def build_chanlun_verdict(stock: dict, bars: list[dict], analysis: dict) -> dict:
     last = bars[-1]
-    n = len(bars)
-    signals = analysis.get("signals", [])
-    latest = signals[-1] if signals else None
-    active = bool(latest and (n - 1 - int(latest["kIdx"])) <= 20)
-    div = analysis.get("divergence")
+    fxs = analysis.get("fxs") or analysis.get("fractals") or []
+    bis = analysis.get("bis") or []
+    zs = analysis.get("zs") or analysis.get("pivots") or []
     trend = analysis.get("trend", {})
-    last_pv = (analysis.get("pivots") or [])[-1] if analysis.get("pivots") else None
-    if last_pv:
-        if last["close"] > last_pv["zg"]:
+    stats = analysis.get("stats", {})
+    latest_bi = bis[-1] if bis else None
+    last_zs = zs[-1] if zs else None
+    if last_zs:
+        if last["close"] > last_zs["zg"]:
             pivot_rel = "最近中枢上方"
-        elif last["close"] < last_pv["zd"]:
+        elif last["close"] < last_zs["zd"]:
             pivot_rel = "最近中枢下方"
         else:
             pivot_rel = "最近中枢区间内"
     else:
-        pivot_rel = "无中枢参照"
-    if active:
-        buy = latest["kind"].startswith("B")
-        headline = f'{trend.get("text", "盘整")}中,近端出现{latest["label"]}{"(形成中)" if latest.get("forming") else ""},结构{"偏多" if buy else "偏空"}。'
+        pivot_rel = "暂无中枢参照"
+    signals = analysis.get("signals") or []
+    latest_sig = signals[-1] if signals else None
+    divergence = analysis.get("divergence") or {}
+    if latest_sig:
+        forming = "（形成中）" if latest_sig.get("forming") else ""
+        sig_text = f'最近信号：{latest_sig.get("label", latest_sig.get("kind", ""))}{forming} @ {fmt_chanlun_price(latest_sig.get("price"))}（{str(latest_sig.get("date", ""))[5:] or "-"}）。'
+    else:
+        sig_text = "当前无买卖点信号。"
+    headline = f'CZSC识别为{trend.get("text", "结构观察")}，当前价格处于{pivot_rel}。{sig_text}'
+    if latest_bi:
+        direction = "向上" if latest_bi.get("dir") == 1 else "向下"
         body = (
-            f'{bars[latest["kIdx"]]["date"]} 于 {fmt_chanlun_price(latest["price"])} 识别出{latest["label"]};'
-            f'现价 {fmt_chanlun_price(last["close"])},处于{pivot_rel}。判定依据:{trend.get("detail", "结构尚不充分")}。'
+            f'基于 {len(bars)} 根K线，CZSC生成 {len(fxs)} 个分型、{len(bis)} 笔、{len(zs)} 个中枢候选。'
+            f'最新一笔为{direction}，区间 {latest_bi.get("sdt")} ~ {latest_bi.get("edt")}，'
+            f'力度 {fmt_chanlun_price(latest_bi.get("power"))}，R² {safe_float(latest_bi.get("rsq")):.2f}。'
+            f'{trend.get("detail", "")}'
         )
     else:
-        headline = f'{trend.get("text", "盘整")}格局,暂无新增买卖点信号。'
-        if latest:
-            body = (
-                f'{trend.get("detail", "结构尚不充分")}。最近一个信号为 {bars[latest["kIdx"]]["date"]} 的'
-                f'{latest["label"]}({fmt_chanlun_price(latest["price"])}),距今已 {n - 1 - latest["kIdx"]} 根K线;'
-                f'现价处于{pivot_rel},等待新的背驰信号或中枢突破后的回抽确认。'
-            )
-        else:
-            body = (
-                f'{trend.get("detail", "结构尚不充分")}。样本期内未出现符合定义的三类买卖点;'
-                f'现价处于{pivot_rel},等待新的背驰信号或中枢突破后的回抽确认。'
-            )
-    risks = []
-    if div and div.get("detected") and not div.get("confirmed"):
-        risks.append("末段走势未完成,背驰判定将随新K线动态变化")
-    if latest and latest.get("forming") and active:
-        risks.append(f'{latest["label"]}尚在形成中,需待线段终结确认')
-    risks.append("缠论判定存在级别与主观性差异,本页仅为技术结构辅助,不构成投资建议")
+        body = (
+            f'基于 {len(bars)} 根K线，CZSC生成 {len(fxs)} 个分型，但尚未形成有效笔。'
+            f'{trend.get("detail", "结构样本仍不足。")}'
+        )
+    risks = ["CZSC结构会随新K线动态变化，本页仅为技术结构复盘，不构成投资建议"]
     metas = [
         {
-            "k": "走势类型",
+            "k": "CZSC趋势",
             "v": trend.get("text", "盘整"),
-            "note": f'{analysis.get("stats", {}).get("pivots", 0)} 个中枢参与判定',
+            "note": trend.get("detail", "结构观察"),
             "tone": "var(--up)" if trend.get("kind") == "up" else "var(--down)" if trend.get("kind") == "down" else None,
         },
         {
-            "k": "最新信号",
-            "v": latest["label"] if latest else "暂无",
-            "note": f'{bars[latest["kIdx"]]["date"]} · {fmt_chanlun_price(latest["price"])}' if latest else "样本期内无",
-            "tone": "var(--up)" if latest and latest["kind"].startswith("B") else "var(--down)" if latest else None,
+            "k": "分型/笔",
+            "v": f'{stats.get("fxs", len(fxs))}/{stats.get("bis", len(bis))}',
+            "note": "FX / BI",
         },
         {
-            "k": "背驰状态",
-            "v": (div["type"] if div and div.get("detected") else "无背驰") if div else "不可比",
-            "note": f'c段/b段 MACD 面积比 {(safe_float(div.get("ratio")) * 100):.0f}%' if div else "线段数量不足",
-            "tone": "#a63a32" if div and div.get("detected") else None,
+            "k": "中枢候选",
+            "v": str(stats.get("zs", len(zs))),
+            "note": f'最近区间 [{fmt_chanlun_price(last_zs["zd"])} - {fmt_chanlun_price(last_zs["zg"])}]' if last_zs else "暂无",
         },
         {
             "k": "现价位置",
             "v": pivot_rel,
-            "note": f'中枢区间 [{fmt_chanlun_price(last_pv["zd"])} - {fmt_chanlun_price(last_pv["zg"])}]' if last_pv else "—",
+            "note": f'收盘 {fmt_chanlun_price(last["close"])}',
+        },
+        {
+            "k": "买卖点/背驰",
+            "v": (latest_sig.get("label", "-") if latest_sig else "无信号"),
+            "note": (
+                f'{divergence.get("type", "")} 面积比 {safe_float(divergence.get("ratio")):.2f}'
+                if divergence.get("detected")
+                else "未检出背驰"
+            ),
+            "tone": (
+                ("var(--up)" if str(latest_sig.get("kind", "")).startswith("B") else "var(--down)")
+                if latest_sig
+                else None
+            ),
         },
     ]
     return {"headline": headline, "body": body, "risk": ";".join(risks) + "。", "metas": metas}
@@ -2588,9 +3278,12 @@ def chanlun_ai_payload(data: dict) -> dict:
         "recentBars": bars[-20:],
         "stats": analysis.get("stats", {}),
         "trend": analysis.get("trend", {}),
+        "engine": analysis.get("engine", {}),
+        "latestFX": analysis.get("fxs", [])[-10:],
+        "latestBI": analysis.get("bis", [])[-8:],
+        "latestZS": analysis.get("zs", [])[-5:],
+        "latestSignals": analysis.get("signals", [])[-6:],
         "divergence": analysis.get("divergence"),
-        "latestPivots": analysis.get("pivots", [])[-3:],
-        "latestSignals": analysis.get("signals", [])[-5:],
     }
 
 
@@ -2599,7 +3292,7 @@ def apply_chanlun_ai(data: dict, cfg: dict) -> None:
         parsed, model = call_llm_json(
             cfg,
             (
-                "你是缠论技术结构复盘助手。只根据用户提供的K线结构、分型、笔、线段、中枢、背驰和买卖点事实输出JSON。"
+                "你是CZSC缠论技术结构复盘助手。只根据用户提供的K线、分型FX、笔BI和中枢ZS事实输出JSON。"
                 "不要输出Markdown。不要给投资建议、买入卖出指令、收益承诺或仓位建议。"
                 "JSON字段仅允许 headline、body、risk、notes。headline和body用于复盘摘要，risk用于风险提示，notes为字符串数组。"
                 "必须强调结构信号仅供学习研究和复盘参考。"
@@ -2629,7 +3322,9 @@ def apply_chanlun_ai(data: dict, cfg: dict) -> None:
 
 
 def build_chanlun_analysis(symbol: str, period: str, requested: dt.date, cfg: dict, force_refresh: bool = False) -> dict:
-    period = period if period in {"day", "week"} else "day"
+    period = period if period in {"30m", "30min", "day", "week"} else "day"
+    if period == "30min":
+        period = "30m"
     normalized = normalize_chanlun_symbol(symbol)
     if not force_refresh:
         cached = load_chanlun_cache(normalized, period, requested)
@@ -2640,11 +3335,15 @@ def build_chanlun_analysis(symbol: str, period: str, requested: dt.date, cfg: di
     if len(bars) < 35:
         raise RuntimeError(f"Not enough bars for ChanLun analysis: {len(bars)}")
     trade_date = parse_iso_date(bars[-1]["date"]) or requested
-    analysis = analyze_chanlun_bars(bars, cfg)
+    analysis_cfg = copy.deepcopy(cfg)
+    analysis_cfg["_chanlun_symbol"] = normalized
+    analysis_cfg["_chanlun_period"] = period
+    analysis = analyze_chanlun_bars(bars, analysis_cfg)
     data = {
         "meta": {
             "source": "WeStock Data · 腾讯自选股" if provider == "westock" else "AKShare · 备选数据源",
             "dataProvider": provider,
+            "engine": analysis.get("engine", {}).get("source", "CZSC"),
             "primaryFallback": primary_error,
             "asOf": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
             "requestedDate": requested.isoformat(),
@@ -2656,9 +3355,11 @@ def build_chanlun_analysis(symbol: str, period: str, requested: dt.date, cfg: di
         "stock": stock,
         "bars": bars,
         "analysis": analysis,
-        "verdict": build_chanlun_verdict(stock, bars, analysis),
+        "verdict": {},
         "ai": {},
     }
+    data["analysis"]["generatedSignals"] = generate_czsc_signals_compat(data)
+    data["verdict"] = build_chanlun_verdict(stock, bars, data["analysis"])
     apply_chanlun_ai(data, cfg)
     write_chanlun_cache(normalized, period, requested, data)
     return data
@@ -2743,7 +3444,7 @@ def build_akshare_scan(requested: dt.date, cfg: dict) -> dict:
     for item in sectors[:3]:
         closes = item.get("_techKline") or item["kline"]
         r6 = rsi(closes)
-        dif, dea, m = macd(closes)
+        dif, dea, m = (round(v, 4) for v in macd(closes))
         signal = "BULL" if m > 0 and r6 >= 50 else "BEAR" if m < 0 and r6 <= 45 else "NEUTRAL"
         tech.append({"name": item["name"], "rsi6": r6, "dif": dif, "dea": dea, "macd": m, "signal": signal})
 
@@ -3003,6 +3704,9 @@ def compute_sector_factors(
         trend_ma_align = 0.0
 
     _, _, macd_hist = macd(closes)
+    last_close = closes[-1] if closes else 0.0
+    # MACD 柱按价格水平归一（%），否则 ETF（~2 元）与行业指数（~10000 点）在截面上不可比
+    trend_macd_hist_pct = (macd_hist / last_close * 100) if last_close else None
 
     bar_dicts = [{"high": b["high"], "low": b["low"], "close": b["close"]} for b in bars]
     adx_result = calc_adx_dmi(bar_dicts) if len(bar_dicts) >= 20 else None
@@ -3014,24 +3718,36 @@ def compute_sector_factors(
         else:
             trend_adx = 0.0
 
-    mom_return_20 = pct_change(closes, 20) if len(closes) > 20 else 0.0
+    mom_return_20 = pct_change(closes, 20) if len(closes) > 20 else None
+    mom_return_60 = pct_change(closes, 60) if len(closes) > 60 else None
 
     csi_bars = hist_rows_to_bars(csi300_rows)
     csi_closes = [b["close"] for b in csi_bars]
+    # 超额收益仅作展示：截面 z-score 下 ret20 与 (ret20 - 基准常数) 完全同质，不重复计权
     mom_rs20 = (pct_change(closes, 20) - pct_change(csi_closes, 20)) if (len(closes) > 20 and len(csi_closes) > 20) else 0.0
 
-    flow_main_net = None
-    flow_main_net_5d = None
+    # 资金流：净额统一为亿元（展示用），评分用净占比（占成交额 %，跨板块规模可比）
+    flow_net_1d = None
+    flow_net_5d = None
+    flow_intensity_1d = None
+    flow_intensity_5d = None
     if flow_rows:
         recent = [r for _, r in flow_rows[-6:]]
         if recent:
-            raw_1d = safe_float(get_field(recent[-1], "主力净流入-净额", "主力净流入", "净流入"))
+            raw_1d = safe_float(get_field(recent[-1], "主力净流入亿元"))
             if raw_1d:
-                flow_main_net = raw_1d
-            vals_5d = [safe_float(get_field(r, "主力净流入-净额", "主力净流入", "净流入")) for r in recent[-5:]]
+                flow_net_1d = raw_1d
+            vals_5d = [safe_float(get_field(r, "主力净流入亿元")) for r in recent[-5:]]
             vals_5d = [v for v in vals_5d if v]
             if vals_5d:
-                flow_main_net_5d = sum(vals_5d)
+                flow_net_5d = sum(vals_5d)
+            ratio_1d = get_field(recent[-1], "主力净流入净占比")
+            if ratio_1d is not None and safe_float(ratio_1d):
+                flow_intensity_1d = safe_float(ratio_1d)
+            ratios_5d = [safe_float(get_field(r, "主力净流入净占比")) for r in recent[-5:] if get_field(r, "主力净流入净占比") is not None]
+            ratios_5d = [v for v in ratios_5d if v]
+            if ratios_5d:
+                flow_intensity_5d = sum(ratios_5d) / len(ratios_5d)
 
     breadth_adv_decline = None
     if cons_rows:
@@ -3047,55 +3763,101 @@ def compute_sector_factors(
     return {
         "trend_ma_align": trend_ma_align,
         "trend_macd_hist": macd_hist,
+        "trend_macd_hist_pct": trend_macd_hist_pct,
         "trend_adx": trend_adx,
         "mom_return_20": mom_return_20,
+        "mom_return_60": mom_return_60,
         "mom_rs20": mom_rs20,
-        "flow_main_net": flow_main_net,
-        "flow_main_net_5d": flow_main_net_5d,
+        "flow_net_1d": flow_net_1d,
+        "flow_net_5d": flow_net_5d,
+        "flow_intensity_1d": flow_intensity_1d,
+        "flow_intensity_5d": flow_intensity_5d,
         "breadth_adv_decline": breadth_adv_decline,
         "crowd_turnover": crowd_turnover,
-        "last_close": closes[-1] if closes else 0.0,
+        "last_close": last_close,
         "bars": bars,
     }
 
 
+def _weighted_avail(parts: list[tuple[float | None, float]]) -> float | None:
+    """按可用项加权平均：缺失因子不按 0 分占权重，而是把权重重分配给可用因子。"""
+    avail = [(v, w) for v, w in parts if v is not None]
+    if not avail:
+        return None
+    wsum = sum(w for _, w in avail)
+    return sum(v * w for v, w in avail) / wsum if wsum else None
+
+
+# 组权重：趋势 / 动量 / 资金 / 广度。拥挤度不进综合分，仅作风险警示。
+DECISION_GROUP_WEIGHTS = {"trend": 0.30, "momentum": 0.25, "flow": 0.25, "breadth": 0.20}
+
+
 def score_sector_factors(factors: dict, normalized: dict) -> dict:
-    ma_n = normalized.get("trend_ma_align", 0.0) or 0.0
-    macd_n = normalized.get("trend_macd_hist") or 0.0
+    ma_n = normalized.get("trend_ma_align")
+    macd_n = normalized.get("trend_macd_hist_pct")
     adx_n = normalized.get("trend_adx")
+    trend_score = _weighted_avail([(ma_n, 0.35), (macd_n, 0.35), (adx_n, 0.30)])
 
-    trend_score = ma_n * 0.35 + macd_n * 0.35 + (adx_n or 0.0) * (0.30 if adx_n is not None else 0.0)
-    if adx_n is None:
-        trend_score = ma_n * 0.50 + macd_n * 0.50
-
-    momentum_score = (normalized.get("mom_return_20") or 0.0) * 0.45 + (normalized.get("mom_rs20") or 0.0) * 0.55
-    flow_score = (normalized.get("flow_main_net") or 0.0) * 0.55 + (normalized.get("flow_main_net_5d") or 0.0) * 0.45
-    breadth_score = normalized.get("breadth_adv_decline") or 0.0
+    momentum_score = _weighted_avail([
+        (normalized.get("mom_return_20"), 0.60),
+        (normalized.get("mom_return_60"), 0.40),
+    ])
+    flow_score = _weighted_avail([
+        (normalized.get("flow_intensity_1d"), 0.55),
+        (normalized.get("flow_intensity_5d"), 0.45),
+    ])
+    breadth_score = normalized.get("breadth_adv_decline")
     crowd_score = normalized.get("crowd_turnover") or 0.0
-    breadth_low_conf = factors.get("breadth_adv_decline") is None
+    breadth_low_conf = breadth_score is None
 
-    composite = (trend_score * 0.30 + momentum_score * 0.25 + flow_score * 0.25 + breadth_score * 0.20)
-    confidence = 0.50
+    composite = _weighted_avail([
+        (trend_score, DECISION_GROUP_WEIGHTS["trend"]),
+        (momentum_score, DECISION_GROUP_WEIGHTS["momentum"]),
+        (flow_score, DECISION_GROUP_WEIGHTS["flow"]),
+        (breadth_score, DECISION_GROUP_WEIGHTS["breadth"]),
+    ]) or 0.0
+
+    # confidence = 数据完备度：基础 0.40 + ADX 有效 0.15 + 真实资金流 0.25 + 真实广度 0.20
+    confidence = 0.40
     if adx_n is not None:
         confidence += 0.15
-    if factors.get("flow_main_net") is not None:
-        confidence += 0.20
+    if flow_score is not None:
+        confidence += 0.25
     if not breadth_low_conf:
-        confidence += 0.15
+        confidence += 0.20
+
+    def rnd(v: float | None) -> float | None:
+        return round(v, 4) if v is not None else None
 
     return {
         "composite": round(max(-1.0, min(1.0, composite)), 4),
-        "trend": round(trend_score, 4),
-        "momentum": round(momentum_score, 4),
-        "flow": round(flow_score, 4),
-        "breadth": round(breadth_score, 4),
-        "crowd": round(crowd_score, 4),
+        "trend": rnd(trend_score),
+        "momentum": rnd(momentum_score),
+        "flow": rnd(flow_score),
+        "breadth": rnd(breadth_score),
+        "crowd": rnd(crowd_score),
         "confidence": round(min(1.0, confidence), 3),
         "breadth_low_confidence": breadth_low_conf,
     }
 
 
 TIER_ORDER = ["强烈看多", "看多", "中性", "看空", "强烈看空"]
+
+
+def _rsi_score(rsi_v: float) -> float:
+    """RSI 分段评分：动量确认 + 超买惩罚 + 超卖不给负满分（均值回复预期）。
+    45→70 线性加分至 +1；70→85 递减（超买）；30→45 线性减分至 -0.8；<30 记 -0.5。"""
+    if rsi_v >= 85:
+        return 0.0
+    if rsi_v >= 75:
+        return round(0.6 * (85 - rsi_v) / 10, 4)
+    if rsi_v >= 70:
+        return round(1.0 - 0.4 * (rsi_v - 70) / 5, 4)
+    if rsi_v >= 45:
+        return round((rsi_v - 45) / 25, 4)
+    if rsi_v >= 30:
+        return round(-0.8 * (45 - rsi_v) / 15, 4)
+    return -0.5
 
 
 def composite_to_tier(composite: float) -> str:
@@ -3110,31 +3872,46 @@ def composite_to_tier(composite: float) -> str:
     return "强烈看空"
 
 
-def downgrade_tier(tier: str) -> str:
-    idx = TIER_ORDER.index(tier) if tier in TIER_ORDER else 2
-    return TIER_ORDER[min(idx + 1, len(TIER_ORDER) - 1)]
-
-
 def check_sector_gates(
     factors: dict,
     hist_rows: list[tuple[dt.date, dict]],
     trade_date: dt.date,
     scores: dict,
 ) -> list[str]:
+    """SG1/SG2 为硬门控（NO_SIGNAL）；SG4/SG5/RISK3 仅为警示标签，
+    不降级 tier（背离已通过 flow/breadth 权重反映在 composite 中，避免双重惩罚），
+    但会折减置信度（见 apply_gate_confidence）。"""
     gates = []
     today = dt.date.today()
     if (today - trade_date).days > 3:
         gates.append("SG1:数据可能过期")
     if len(hist_rows) < 45:
         gates.append("SG2:历史数据不足(低置信)")
-    if not scores.get("breadth_low_confidence") and scores.get("momentum", 0.0) > 0.3 and scores.get("breadth", 0.0) < -0.3:
-        gates.append("SG4:广度背离→降级")
-    if scores.get("momentum", 0.0) > 0.3 and scores.get("flow", 0.0) < -0.3:
-        gates.append("SG5:资金背离→降级")
+    momentum = scores.get("momentum")
+    breadth = scores.get("breadth")
+    flow = scores.get("flow")
+    if momentum is not None and momentum > 0.3:
+        if breadth is not None and breadth < -0.3:
+            gates.append("SG4:广度背离")
+        if flow is not None and flow < -0.3:
+            gates.append("SG5:资金背离")
+    # 拥挤警示：换手截面显著偏高（clip 后 >0.8 ≈ +1.6σ）叠加强动量
+    if (scores.get("crowd") or 0.0) > 0.8 and (momentum or 0.0) > 0.5:
+        gates.append("RISK3:交易拥挤(高换手+强动量)")
     return gates
 
 
-def compute_decision_price_levels(bars: list[dict]) -> dict | None:
+def apply_gate_confidence(confidence: float, gates: list[str]) -> float:
+    """警示类门控折减置信度：背离 -0.15，拥挤 -0.10，下限 0.20。"""
+    for g in gates:
+        if g.startswith(("SG4", "SG5")):
+            confidence -= 0.15
+        elif g.startswith("RISK3"):
+            confidence -= 0.10
+    return round(max(0.20, confidence), 3)
+
+
+def compute_decision_price_levels(bars: list[dict], basis: dict | None = None) -> dict | None:
     closes = [b["close"] for b in bars]
     if len(bars) < 2 or not closes:
         return None
@@ -3145,8 +3922,7 @@ def compute_decision_price_levels(bars: list[dict]) -> dict | None:
     stop_loss = round(last_close - 1.5 * atr14, 3)
     target_1 = round(last_close + 2.0 * atr14, 3)
     target_2 = round(last_close + 3.5 * atr14, 3)
-    risk = last_close - stop_loss
-    return {
+    out = {
         "last_close": round(last_close, 3),
         "atr14": round(atr14, 3),
         "entry_low": round(last_close - 0.3 * atr14, 3),
@@ -3154,14 +3930,21 @@ def compute_decision_price_levels(bars: list[dict]) -> dict | None:
         "stop_loss": stop_loss,
         "target_1": target_1,
         "target_2": target_2,
-        "risk_reward": round((target_1 - last_close) / risk, 2) if risk > 0 else 0.0,
+        # ATR 倍数固定时盈亏比是常数，改报相对幅度更有信息量
+        "stop_loss_pct": round((stop_loss / last_close - 1) * 100, 2),
+        "target_1_pct": round((target_1 / last_close - 1) * 100, 2),
+        "target_2_pct": round((target_2 / last_close - 1) * 100, 2),
         "note": "决策价位非价格预测",
     }
+    if basis:
+        out["basis"] = basis
+    return out
 
 
 def decision_cache_path(kind: str, key: str, date: dt.date) -> Path:
+    # v2：因子口径重构（截面归一统一/权重重分配/资金净占比），旧缓存口径不兼容
     safe = re.sub(r"[^\w一-鿿]+", "_", key)
-    return CACHE_DIR / f"decision_{kind}_{safe}_{date.isoformat()}.json"
+    return CACHE_DIR / f"decision_v2_{kind}_{safe}_{date.isoformat()}.json"
 
 
 def load_decision_cache(kind: str, key: str, date: dt.date) -> dict | None:
@@ -3240,32 +4023,42 @@ def _fetch_csi300_for_decision(target: dt.date, cfg: dict) -> list[tuple[dt.date
 
 
 def _fetch_sector_flow_for_decision(name: str, target: dt.date, cfg: dict) -> list[tuple[dt.date, dict]]:
+    """返回统一口径的资金流序列：主力净流入亿元（展示）+ 主力净流入净占比 %（评分）。
+    AKShare 净额单位为元；WeStock 兜底为万元且无净占比（因此只参与展示、不参与评分）。"""
     ak = get_ak()
     try:
         rows = date_rows(records(ak.stock_sector_fund_flow_hist(symbol=name)))
         result = rows_until(rows, target)
         if result:
-            return result
+            unified = []
+            for d, r in result:
+                net_yuan = safe_float(get_field(r, "主力净流入-净额", "主力净流入", "净流入"))
+                ratio = get_field(r, "主力净流入-净占比", "主力净流入净占比")
+                unified.append((d, {
+                    "主力净流入亿元": round(net_yuan / 1e8, 3) if net_yuan else 0.0,
+                    "主力净流入净占比": safe_float(ratio) if ratio is not None else None,
+                }))
+            return unified
     except Exception as exc:
         log(f"decision flow AKShare failed: {name}: {exc}")
-    # Fallback: WeStock board 行业资金流入 table
+    # Fallback: WeStock board 行业资金流入 table（万元，无净占比）
     try:
         board_text = westock_run(["board"], cfg)
         for heading, rows in parse_markdown_tables(board_text):
             if "资金流入" in heading and rows and "mainNetInflow" in rows[0]:
                 for r in rows:
                     if str(r.get("name") or "").strip() == name:
-                        v1 = safe_float(r.get("mainNetInflow"))
-                        v5 = safe_float(r.get("mainNetInflow5d"))
+                        v1 = safe_float(r.get("mainNetInflow")) / 1e4
+                        v5 = safe_float(r.get("mainNetInflow5d")) / 1e4
                         if v1 or v5:
                             avg5 = (v5 / 5.0) if v5 else (v1 or 0.0)
                             synthetic = []
                             for i in range(5):
                                 d = target - dt.timedelta(days=4 - i)
-                                synthetic.append((d, {"主力净流入": avg5, "主力净流入-净额": avg5}))
+                                synthetic.append((d, {"主力净流入亿元": round(avg5, 3), "主力净流入净占比": None}))
                             if v1:
-                                synthetic[-1] = (target, {"主力净流入": v1, "主力净流入-净额": v1})
-                            log(f"decision flow WeStock fallback: {name} v1={v1} v5={v5}")
+                                synthetic[-1] = (target, {"主力净流入亿元": round(v1, 3), "主力净流入净占比": None})
+                            log(f"decision flow WeStock fallback: {name} v1={v1:.2f}亿 v5={v5:.2f}亿")
                             return synthetic
     except Exception as exc:
         log(f"decision flow WeStock fallback failed: {name}: {exc}")
@@ -3318,8 +4111,10 @@ def _fetch_sector_cons_for_decision(name: str, cfg: dict) -> list[dict]:
 
 
 def _normalize_factor_list(sectors_factors: list[dict]) -> list[dict]:
-    keys = ["trend_macd_hist", "mom_return_20", "mom_rs20",
-            "flow_main_net", "flow_main_net_5d", "breadth_adv_decline", "crowd_turnover"]
+    """截面 z-score 归一。缺失因子保持 None（由 score_sector_factors 做权重重分配），
+    不再把缺失伪装成 0 分。"""
+    keys = ["trend_macd_hist_pct", "mom_return_20", "mom_return_60", "mom_rs20",
+            "flow_intensity_1d", "flow_intensity_5d", "breadth_adv_decline", "crowd_turnover"]
     all_vals: dict[str, list[float]] = {k: [] for k in keys}
     for sf in sectors_factors:
         for k in keys:
@@ -3334,7 +4129,7 @@ def _normalize_factor_list(sectors_factors: list[dict]) -> list[dict]:
         norm["trend_adx"] = sf.get("trend_adx")
         for k in keys:
             v = sf.get(k)
-            norm[k] = zscore_normalize_cross(v, all_vals[k]) if v is not None else (0.0 if "flow" not in k else None)
+            norm[k] = zscore_normalize_cross(v, all_vals[k]) if v is not None else None
         normalized_list.append(norm)
     return normalized_list
 
@@ -3405,9 +4200,7 @@ def build_decision_rotation(requested: dt.date, cfg: dict, force_refresh: bool =
             continue
         trade_date = hist[-1][0]
         factors = compute_sector_factors(hist, csi300_rows, flow_data.get(name, []), [])
-        # Rotation skips constituent fetch — treat breadth as neutral rather than missing
-        if factors.get("breadth_adv_decline") is None:
-            factors["breadth_adv_decline"] = 0.0
+        # 轮动不拉成分股：广度保持 None（缺失），由评分层做权重重分配，不伪造中性值
         factors["name"] = name
         factors["trade_date"] = trade_date.isoformat()
         sectors_factors.append(factors)
@@ -3422,24 +4215,41 @@ def build_decision_rotation(requested: dt.date, cfg: dict, force_refresh: bool =
         scores = score_sector_factors(sf, norm)
         trade_date = dt.date.fromisoformat(sf["trade_date"])
         gates = check_sector_gates(sf, histories.get(sf["name"], []), trade_date, scores)
+        # tier 一律由 composite 决定；SG4/SG5/RISK3 只作警示并折减置信度
         if any("SG1" in g or "SG2" in g for g in gates):
             tier = "NO_SIGNAL"
         else:
             tier = composite_to_tier(scores["composite"])
-            if any("SG4" in g or "SG5" in g for g in gates):
-                tier = downgrade_tier(tier)
+        confidence = apply_gate_confidence(scores["confidence"], gates)
+
+        def _rnd(v: Any, digits: int = 4) -> Any:
+            return round(v, digits) if isinstance(v, (int, float)) else v
+
         result_sectors.append({
             "name": sf["name"],
             "tier": tier,
             "composite": scores["composite"],
-            "confidence": scores["confidence"],
-            "rs20": round(sf.get("mom_rs20", 0.0), 2),
+            "confidence": confidence,
+            "rs20": round(sf.get("mom_rs20") or 0.0, 2),
             "flow_score": scores["flow"],
             "breadth_score": scores["breadth"],
             "breadth_low_confidence": scores["breadth_low_confidence"],
             "gates": gates,
             "group_scores": {k: scores[k] for k in ("trend", "momentum", "flow", "breadth", "crowd")},
             "trade_date": sf["trade_date"],
+            # 因子明细随轮动缓存下发，供板块明细页复用同一套截面口径
+            "factors_raw": {k: _rnd(sf.get(k), 6) for k in (
+                "trend_ma_align", "trend_adx", "trend_macd_hist", "trend_macd_hist_pct",
+                "mom_return_20", "mom_return_60", "mom_rs20",
+                "flow_net_1d", "flow_net_5d", "flow_intensity_1d", "flow_intensity_5d",
+                "breadth_adv_decline", "crowd_turnover", "last_close",
+            )},
+            "factors_norm": {k: _rnd(norm.get(k)) for k in (
+                "trend_ma_align", "trend_adx", "trend_macd_hist_pct",
+                "mom_return_20", "mom_return_60", "mom_rs20",
+                "flow_intensity_1d", "flow_intensity_5d",
+                "breadth_adv_decline", "crowd_turnover",
+            )},
         })
 
     active = sorted([s for s in result_sectors if s["tier"] != "NO_SIGNAL"], key=lambda s: s["composite"], reverse=True)
@@ -3469,13 +4279,15 @@ def build_decision_sector(name: str, requested: dt.date, cfg: dict, force_refres
         if cached:
             return cached
 
-    start = target - dt.timedelta(days=120)
-    hist = _fetch_sector_hist_for_decision(name, start, target, cfg)
-    if not hist:
-        raise RuntimeError(f"No history data for sector: {name}")
-    trade_date = hist[-1][0]
-    csi300_rows = _fetch_csi300_for_decision(target, cfg)
-    flow_rows = _fetch_sector_flow_for_decision(name, target, cfg)
+    # 评分口径与轮动完全一致：复用同一日截面归一结果，明细页不再自建归一
+    rotation = build_decision_rotation(target, cfg, force_refresh=False)
+    row = next(
+        (s for s in (rotation.get("sectors") or []) + (rotation.get("abstained") or []) if s.get("name") == name),
+        None,
+    )
+    if row is None:
+        raise RuntimeError(f"板块「{name}」不在当日轮动覆盖范围内，无法给出与排行一致的评分")
+
     cons_rows = _fetch_sector_cons_for_decision(name, cfg)
 
     pct_above_ma20: float | None = None
@@ -3511,50 +4323,42 @@ def build_decision_sector(name: str, requested: dt.date, cfg: dict, force_refres
         except Exception as exc:
             log(f"decision constituent klines failed: {name}: {exc}")
 
-    factors = compute_sector_factors(hist, csi300_rows, flow_rows, cons_rows)
-    bars = factors["bars"]
+    raw = row.get("factors_raw") or {}
+    norm = row.get("factors_norm") or {}
+    tier = row.get("tier", "NO_SIGNAL")
+    gates = list(row.get("gates") or [])
+    trade_date = parse_iso_date(row.get("trade_date")) or target
 
-    # Single-sector normalization: sign-based for flow, direct for ma/adx
-    flow_n1 = (1.0 if (factors.get("flow_main_net") or 0) > 0 else -1.0) if factors.get("flow_main_net") is not None else 0.0
-    flow_n5 = (1.0 if (factors.get("flow_main_net_5d") or 0) > 0 else -1.0) if factors.get("flow_main_net_5d") is not None else 0.0
-    closes = [b["close"] for b in bars]
-    recent_returns = [pct_change(closes, n) for n in range(1, min(21, len(closes)))]
-    norm_mom = zscore_normalize_cross(factors["mom_return_20"], recent_returns) if recent_returns else 0.0
-    norm: dict[str, Any] = {
-        "trend_ma_align": factors["trend_ma_align"],
-        "trend_macd_hist": zscore_normalize_cross(factors["trend_macd_hist"], [factors["trend_macd_hist"]]) if factors["trend_macd_hist"] else 0.0,
-        "trend_adx": factors["trend_adx"],
-        "mom_return_20": norm_mom,
-        "mom_rs20": max(-1.0, min(1.0, factors["mom_rs20"] / 10.0)) if factors["mom_rs20"] else 0.0,
-        "flow_main_net": flow_n1,
-        "flow_main_net_5d": flow_n5,
-        "breadth_adv_decline": factors.get("breadth_adv_decline") or 0.0,
-        "crowd_turnover": 0.0,
-    }
-
-    scores = score_sector_factors(factors, norm)
-    gates = check_sector_gates(factors, hist, trade_date, scores)
-    if any("SG1" in g or "SG2" in g for g in gates):
-        tier = "NO_SIGNAL"
-    else:
-        tier = composite_to_tier(scores["composite"])
-        if any("SG4" in g or "SG5" in g for g in gates):
-            tier = downgrade_tier(tier)
-
-    price_levels = compute_decision_price_levels(bars)
+    # 价格区间一律以可交易的 ETF 代理为基准（指数点位不可交易）
+    price_levels = None
+    etf_list = DECISION_SECTOR_ETF.get(name, [])
+    if etf_list:
+        etf = etf_list[0]
+        raw_code = etf["etf_code"]
+        mkt = "sh" if raw_code.startswith(("5", "6")) else "sz"
+        try:
+            etf_rows = rows_until(westock_kline(f"{mkt}{raw_code}", cfg, limit=100), target)
+            etf_bars = hist_rows_to_bars(etf_rows)
+            price_levels = compute_decision_price_levels(
+                etf_bars,
+                basis={"code": raw_code, "name": etf.get("name", ""), "type": "ETF"},
+            )
+        except Exception as exc:
+            log(f"decision sector ETF price levels failed: {name}: {exc}")
 
     evidence = ""
     if not any("SG1" in g for g in gates):
         try:
             llm_payload = {
-                "sector": name, "tier": tier, "composite": scores["composite"],
+                "sector": name, "tier": tier, "composite": row.get("composite"),
                 "factors": {
-                    "ma_align": factors["trend_ma_align"],
-                    "macd_hist": round(factors["trend_macd_hist"], 4),
-                    "mom_return_20": round(factors["mom_return_20"], 2),
-                    "mom_rs20": round(factors["mom_rs20"], 2),
-                    "flow_main_net": factors["flow_main_net"],
-                    "breadth_adv_decline": factors["breadth_adv_decline"],
+                    "ma_align": raw.get("trend_ma_align"),
+                    "macd_hist_pct": raw.get("trend_macd_hist_pct"),
+                    "mom_return_20": raw.get("mom_return_20"),
+                    "mom_return_60": raw.get("mom_return_60"),
+                    "mom_rs20": raw.get("mom_rs20"),
+                    "flow_net_1d_yi": raw.get("flow_net_1d"),
+                    "flow_intensity_1d_pct": raw.get("flow_intensity_1d"),
                 },
                 "gates": gates,
             }
@@ -3572,38 +4376,53 @@ def build_decision_sector(name: str, requested: dt.date, cfg: dict, force_refres
             log(f"decision LLM failed: {name}: {exc}")
 
     cons_result = []
-    for r in sorted(cons_rows, key=lambda row: safe_float(get_field(row, "涨跌幅")), reverse=True)[:30]:
+    for r in sorted(cons_rows, key=lambda item: safe_float(get_field(item, "涨跌幅")), reverse=True)[:30]:
         nm = str(get_field(r, "名称", "股票名称") or "").strip()
         code = str(get_field(r, "代码", "股票代码") or "").strip()
         if nm:
             chg = safe_float(get_field(r, "涨跌幅"))
             cons_result.append({"name": nm, "code": code, "change_pct": round(chg, 2)})
 
+    # 明细页现算的涨跌家数比仅作展示（综合分沿用轮动口径，广度不参与）
+    breadth_adv_decline = None
+    if cons_rows:
+        changes = [safe_float(get_field(r, "涨跌幅")) for r in cons_rows]
+        changes = [c for c in changes if c is not None]
+        if changes:
+            up = sum(1 for c in changes if c > 0)
+            down_cnt = sum(1 for c in changes if c < 0)
+            breadth_adv_decline = round((up - down_cnt) / len(changes), 3)
+
     data = {
         "meta": {"tradeDate": trade_date.isoformat(), "asOf": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "cacheHit": False},
         "name": name,
         "tier": tier,
-        "composite": scores["composite"],
-        "confidence": scores["confidence"],
+        "composite": row.get("composite"),
+        "confidence": row.get("confidence"),
+        "confidence_note": "置信度=数据完备度(基础0.40+ADX 0.15+真实资金流0.25+真实广度0.20)，背离/拥挤警示会折减",
         "gates": gates,
-        "group_scores": {k: scores[k] for k in ("trend", "momentum", "flow", "breadth", "crowd")},
+        "group_scores": row.get("group_scores") or {},
         "factors": {
-            "trend_ma_align": {"raw": factors["trend_ma_align"], "norm": norm["trend_ma_align"], "label": "均线排列", "group": "trend"},
-            "trend_macd": {"raw": round(factors["trend_macd_hist"], 6), "norm": norm["trend_macd_hist"], "label": "MACD柱", "group": "trend"},
-            "trend_adx": {"raw": factors["trend_adx"], "norm": norm.get("trend_adx"), "label": "ADX方向", "group": "trend"},
-            "mom_return_20": {"raw": round(factors["mom_return_20"], 2), "norm": norm["mom_return_20"], "label": "20日动量%", "group": "momentum"},
-            "mom_rs20": {"raw": round(factors["mom_rs20"], 2), "norm": norm["mom_rs20"], "label": "20日超额收益%", "group": "momentum"},
-            "flow_main_net": {"raw": factors["flow_main_net"], "norm": norm["flow_main_net"], "real": factors["flow_main_net"] is not None, "label": "1日主力净流入", "group": "flow"},
-            "flow_main_net_5d": {"raw": factors["flow_main_net_5d"], "norm": norm["flow_main_net_5d"], "real": factors["flow_main_net_5d"] is not None, "label": "5日主力净流入", "group": "flow"},
-            "breadth_adv_decline": {"raw": factors.get("breadth_adv_decline"), "norm": norm["breadth_adv_decline"], "label": "涨跌家数比", "group": "breadth"},
+            "trend_ma_align": {"raw": raw.get("trend_ma_align"), "norm": norm.get("trend_ma_align"), "label": "均线排列", "group": "trend"},
+            "trend_macd": {"raw": raw.get("trend_macd_hist_pct"), "norm": norm.get("trend_macd_hist_pct"), "label": "MACD柱(%价)", "group": "trend"},
+            "trend_adx": {"raw": raw.get("trend_adx"), "norm": norm.get("trend_adx"), "label": "ADX方向", "group": "trend"},
+            "mom_return_20": {"raw": raw.get("mom_return_20"), "norm": norm.get("mom_return_20"), "label": "20日动量%", "group": "momentum"},
+            "mom_return_60": {"raw": raw.get("mom_return_60"), "norm": norm.get("mom_return_60"), "label": "60日动量%", "group": "momentum"},
+            "mom_rs20": {"raw": raw.get("mom_rs20"), "norm": None, "label": "20日超额收益%(展示)", "group": "momentum"},
+            "flow_intensity_1d": {"raw": raw.get("flow_intensity_1d"), "norm": norm.get("flow_intensity_1d"), "real": raw.get("flow_intensity_1d") is not None, "label": "1日主力净占比%", "group": "flow"},
+            "flow_intensity_5d": {"raw": raw.get("flow_intensity_5d"), "norm": norm.get("flow_intensity_5d"), "real": raw.get("flow_intensity_5d") is not None, "label": "5日主力净占比%", "group": "flow"},
+            "flow_net_1d": {"raw": raw.get("flow_net_1d"), "norm": None, "real": raw.get("flow_net_1d") is not None, "label": "1日主力净流入(亿)", "group": "flow"},
+            "flow_net_5d": {"raw": raw.get("flow_net_5d"), "norm": None, "real": raw.get("flow_net_5d") is not None, "label": "5日主力净流入(亿)", "group": "flow"},
+            "breadth_adv_decline": {"raw": breadth_adv_decline, "norm": None, "label": "涨跌家数比(展示)", "group": "breadth"},
             "breadth_pct_above_ma20": {"raw": pct_above_ma20, "norm": None if pct_above_ma20 is None else round(pct_above_ma20 * 2 - 1, 3), "label": "站上MA20占比", "group": "breadth"},
             "breadth_pct_above_ma60": {"raw": pct_above_ma60, "norm": None if pct_above_ma60 is None else round(pct_above_ma60 * 2 - 1, 3), "label": "站上MA60占比", "group": "breadth"},
+            "crowd_turnover": {"raw": raw.get("crowd_turnover"), "norm": norm.get("crowd_turnover"), "label": "换手率%(风险因子)", "group": "crowd"},
         },
         "target_price": price_levels,
         "etf_candidates": DECISION_SECTOR_ETF.get(name, []),
         "constituents": cons_result,
         "evidence": evidence,
-        "disclaimer": "决策支持非投资建议；目标位为决策价位非预测；请核对后自行决策。",
+        "disclaimer": "决策支持非投资建议；价位区间基于 ETF 代理行情，非价格预测；请核对后自行决策。",
     }
     write_decision_cache("sector", name, target, data)
     return data
@@ -3650,8 +4469,10 @@ def build_decision_stock(symbol: str, requested: dt.date, cfg: dict, force_refre
     rsi14 = rsi(closes, 14)
     mom_return_20 = pct_change(closes, 20) if len(closes) > 20 else 0.0
 
-    macd_norm = max(-1.0, min(1.0, macd_h / (abs(macd_h) * 3 or 1.0))) if macd_h else 0.0
-    rsi_norm = (rsi14 - 50) / 50.0
+    # MACD 柱按价归一（%），±0.5% 处饱和；旧公式 macd_h/(|macd_h|*3) 恒等于 ±1/3，无信息量
+    last_close = closes[-1]
+    macd_norm = max(-1.0, min(1.0, (macd_h / last_close * 100) / 0.5)) if (macd_h and last_close) else 0.0
+    rsi_norm = _rsi_score(rsi14)
     mom_norm = max(-1.0, min(1.0, mom_return_20 / 20.0))
     adx_norm = None
     if adx_result:
@@ -3671,10 +4492,10 @@ def build_decision_stock(symbol: str, requested: dt.date, cfg: dict, force_refre
         "gates": [],
         "factors": {
             "trend_ma_align": {"raw": ma_align, "norm": ma_align, "label": "均线排列", "group": "trend"},
-            "trend_macd": {"raw": round(macd_h, 6), "norm": round(macd_norm, 4), "label": "MACD柱", "group": "trend"},
+            "trend_macd": {"raw": round(macd_h / last_close * 100, 4) if last_close else None, "norm": round(macd_norm, 4), "label": "MACD柱(%价)", "group": "trend"},
             "trend_adx": {"raw": adx_result["adx"] if adx_result else None, "norm": adx_norm, "label": "ADX方向", "group": "trend"},
             "mom_return_20": {"raw": round(mom_return_20, 2), "norm": round(mom_norm, 4), "label": "20日动量%", "group": "momentum"},
-            "osc_rsi14": {"raw": round(rsi14, 2), "norm": round(rsi_norm, 4), "label": "RSI(14)", "group": "oscillator"},
+            "osc_rsi14": {"raw": round(rsi14, 2), "norm": round(rsi_norm, 4), "label": "RSI(14) 超买惩罚", "group": "oscillator"},
         },
         "target_price": compute_decision_price_levels(bar_dicts),
         "disclaimer": "决策支持非投资建议；目标位为决策价位非预测。",
@@ -4692,6 +5513,13 @@ def build_review_market_context(indices: list[dict], breadth: dict | None, secto
     }
 
 
+# 大盘信号灯参数：三分量权重与指数斜率。
+# 广度（上涨家数占比）反映赚钱效应最直接，权重最高；指数斜率 12 表示主要指数
+# 平均 ±4% 左右可将指数分打满/打空（50±48）；涨跌停差反映情绪极端度，权重最低。
+MARKET_SIGNAL_WEIGHTS = {"breadth": 0.45, "index": 0.35, "limit": 0.20}
+MARKET_SIGNAL_INDEX_SLOPE = 12.0
+
+
 def compute_market_signal(indices: list[dict], breadth: dict | None) -> dict:
     b = breadth or {}
     up = b.get("up_count", 0)
@@ -4702,7 +5530,7 @@ def compute_market_signal(indices: list[dict], breadth: dict | None) -> dict:
     index_changes = [idx["change_pct"] for idx in indices if idx.get("change_pct") is not None]
     if index_changes:
         avg_change = sum(index_changes) / len(index_changes)
-        index_score = int(max(0, min(100, 50 + avg_change * 12)))
+        index_score = int(max(0, min(100, 50 + avg_change * MARKET_SIGNAL_INDEX_SLOPE)))
     else:
         index_score = 50
 
@@ -4711,7 +5539,8 @@ def compute_market_signal(indices: list[dict], breadth: dict | None) -> dict:
     limit_total = limit_up + limit_down
     limit_score = int(limit_up / limit_total * 100) if limit_total > 0 else 50
 
-    score = int(round(breadth_score * 0.45 + index_score * 0.35 + limit_score * 0.20))
+    w = MARKET_SIGNAL_WEIGHTS
+    score = int(round(breadth_score * w["breadth"] + index_score * w["index"] + limit_score * w["limit"]))
 
     if score >= 60:
         status = "green"
@@ -4750,9 +5579,14 @@ def compute_market_signal(indices: list[dict], breadth: dict | None) -> dict:
     if limit_total > 0:
         reasons.append(f"涨跌停差 {limit_up - limit_down:+d}")
     amount = b.get("total_amount", 0)
+    amount_change = b.get("amount_change_pct")
     if amount > 0:
-        vol_desc = "高活跃度" if amount >= 15000 else "中等活跃" if amount >= 9000 else "缩量观望"
-        reasons.append(f"成交额 {amount:.0f} 亿，{vol_desc}")
+        # 优先用相对量能（较上一交易日），绝对档位随市场环境漂移不可靠
+        if amount_change is not None:
+            vol_desc = "较昨放量" if amount_change > 3 else "较昨缩量" if amount_change < -3 else "量能持平"
+            reasons.append(f"成交额 {amount:.0f} 亿，{vol_desc} {amount_change:+.1f}%")
+        else:
+            reasons.append(f"成交额 {amount:.0f} 亿（无昨日对比数据）")
 
     return {
         "score": score,
@@ -5205,6 +6039,18 @@ class SectorScanHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/chanlun/search":
             self.handle_chanlun_search(parsed)
             return
+        if parsed.path == "/api/chanlun/capabilities":
+            self.handle_chanlun_capabilities(parsed)
+            return
+        if parsed.path == "/api/chanlun/signals":
+            self.handle_chanlun_signals(parsed)
+            return
+        if parsed.path == "/api/chanlun/generate-signals":
+            self.handle_chanlun_generate_signals(parsed)
+            return
+        if parsed.path == "/api/chanlun/visualize":
+            self.handle_chanlun_visualize(parsed)
+            return
         if parsed.path == "/api/chanlun/analyze":
             self.handle_chanlun_analyze(parsed)
             return
@@ -5304,6 +6150,47 @@ class SectorScanHandler(SimpleHTTPRequestHandler):
             log(f"chanlun search error: {exc}")
             data = {"items": [], "meta": {"query": q, "market": market, "count": 0, "error": type(exc).__name__}}
         self.send_json(data)
+
+    def handle_chanlun_capabilities(self, parsed: urllib.parse.ParseResult) -> None:
+        self.send_json(chanlun_capabilities())
+
+    def handle_chanlun_signals(self, parsed: urllib.parse.ParseResult) -> None:
+        params = urllib.parse.parse_qs(parsed.query)
+        q = (params.get("q") or [""])[0]
+        limit = int(safe_float((params.get("limit") or ["80"])[0], 80))
+        self.send_json(chanlun_signal_catalog(q, limit))
+
+    def handle_chanlun_generate_signals(self, parsed: urllib.parse.ParseResult) -> None:
+        params = urllib.parse.parse_qs(parsed.query)
+        symbol = (params.get("symbol") or ["sh000001"])[0]
+        period = (params.get("period") or ["day"])[0]
+        requested = parse_request_date((params.get("date") or [None])[0])
+        signal_raw = (params.get("signals") or [""])[0]
+        specs = [item.strip() for item in re.split(r"[,，\n]+", signal_raw) if item.strip()] or DEFAULT_CZSC_SIGNAL_SPECS
+        cfg = self.server.config
+        try:
+            data = build_chanlun_analysis(symbol, period, requested, cfg, force_refresh=False)
+            self.send_json({
+                "meta": data.get("meta", {}),
+                "stock": data.get("stock", {}),
+                "signals": generate_czsc_signals_compat(data, specs),
+            })
+        except Exception as exc:
+            self.send_json({"meta": {"dataStatus": "error", "error": type(exc).__name__, "message": str(exc)[:240]}, "signals": {"status": "error", "items": []}}, code=500)
+
+    def handle_chanlun_visualize(self, parsed: urllib.parse.ParseResult) -> None:
+        params = urllib.parse.parse_qs(parsed.query)
+        symbol = (params.get("symbol") or ["sh000001"])[0]
+        period = (params.get("period") or ["day"])[0]
+        requested = parse_request_date((params.get("date") or [None])[0])
+        kind = str((params.get("format") or params.get("type") or ["echarts"])[0]).lower()
+        cfg = self.server.config
+        try:
+            data = build_chanlun_analysis(symbol, period, requested, cfg, force_refresh=False)
+            html = build_plotly_html(data) if kind == "plotly" else build_echarts_html(data)
+            self.send_html(html)
+        except Exception as exc:
+            self.send_html(f"<html><body><h1>CZSC visual failed</h1><pre>{html_lib.escape(str(exc))}</pre></body></html>", code=500)
 
     def handle_chanlun_analyze(self, parsed: urllib.parse.ParseResult) -> None:
         params = urllib.parse.parse_qs(parsed.query)
@@ -5455,6 +6342,16 @@ class SectorScanHandler(SimpleHTTPRequestHandler):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_cors_headers()
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_html(self, html: str, code: int = 200) -> None:
+        body = str(html or "").encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_cors_headers()
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))

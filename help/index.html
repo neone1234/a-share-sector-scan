@@ -3,22 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>帮助文档 — A股分析终端</title>
+<title>帮助文档 · A股分析终端</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/tokens.css">
 <style>
+  /* 调色板/字体统一来自 /shared/tokens.css；以下仅为本页历史别名 */
   :root {
-    --bg: #f5f0e8;
-    --surface: #faf7f2;
-    --border: #e0d8cc;
-    --hair: #c8bfb0;
-    --ink: #1a1714;
-    --ink2: #6b6255;
-    --ink3: #9b8e80;
-    --up: #bf3a30;
-    --down: #1e8a5e;
-    --gold: #b08840;
-    --blue: #2a5fa5;
-    --mono: 'SF Mono', 'Menlo', 'Consolas', monospace;
-    --sans: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --bg: var(--paper);
+    --surface: var(--card);
+    --border: var(--hair);
+    --hair-strong: #cfc7b6;
+    --ink3: var(--faint);
+    --blue: var(--navy);
     --sidebar-w: 240px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -48,13 +46,19 @@
     margin-bottom: 16px;
   }
   .brand-mark {
-    width: 32px; height: 32px; border-radius: 8px;
-    background: var(--ink); color: #fff;
+    width: 32px; height: 32px; border-radius: 3px;
+    background: var(--accent); color: #fdf9f0;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 16px; flex-shrink: 0;
+    font: 900 16px/1 var(--serif); flex-shrink: 0;
   }
-  .brand-title { font-weight: 700; font-size: 13px; line-height: 1.2; }
+  .brand-title { font-weight: 700; font-size: 13px; line-height: 1.2; font-family: var(--serif); }
   .brand-sub { font-size: 11px; color: var(--ink3); }
+  .module-nav { padding: 4px 16px 12px; display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  .module-nav a {
+    font-size: 11px; font-weight: 700; color: var(--ink2); text-decoration: none;
+    padding: 3px 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface);
+  }
+  .module-nav a:hover { color: var(--ink); border-color: var(--hair-strong); }
 
   /* ── Sidebar nav ── */
   .nav-group { padding: 8px 16px 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink3); text-transform: uppercase; }
@@ -66,7 +70,7 @@
   /* ── Back link ── */
   .back-row { margin-bottom: 28px; }
   .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink3); text-decoration: none; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; transition: all 0.12s; }
-  .back-link:hover { color: var(--ink); border-color: var(--hair); background: var(--surface); }
+  .back-link:hover { color: var(--ink); border-color: var(--hair-strong); background: var(--surface); }
 
   /* ── Content headings ── */
   .section { margin-bottom: 56px; scroll-margin-top: 24px; }
@@ -133,7 +137,7 @@
   /* ── Module summary cards ── */
   .module-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 20px 0; }
   .module-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; text-decoration: none; color: inherit; transition: all 0.12s; display: block; }
-  .module-card:hover { border-color: var(--hair); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .module-card:hover { border-color: var(--hair-strong); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
   .module-card-icon { font-size: 22px; margin-bottom: 8px; }
   .module-card-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
   .module-card-desc { font-size: 12px; color: var(--ink2); line-height: 1.5; }
@@ -158,10 +162,17 @@
   <div class="topbar">
     <div class="brand-mark">帮</div>
     <div>
-      <div class="brand-title">帮助文档</div>
-      <div class="brand-sub">A股分析终端</div>
+      <div class="brand-title">A股分析终端</div>
+      <div class="brand-sub">HELP · 帮助文档</div>
     </div>
   </div>
+
+  <nav class="module-nav" aria-label="功能模块">
+    <a href="/sector">板块扫描</a>
+    <a href="/chanlun">缠论分析</a>
+    <a href="/decision">决策看板</a>
+    <a href="/review">大盘复盘</a>
+  </nav>
 
   <div class="nav-group">概览</div>
   <a class="nav-item" href="#overview">系统介绍</a>
@@ -513,7 +524,7 @@
             <td>MA 排列 (trend_ma_align)</td><td>均线是否呈现多头排列（MA5 > MA10 > MA20 > MA60）</td>
           </tr>
           <tr>
-            <td>MACD 柱 (trend_macd)</td><td>MACD 柱体值的方向与大小，正值代表多头动量</td>
+            <td>MACD 柱 (trend_macd_hist_pct)</td><td>MACD 柱 ÷ 收盘价 × 100（按价格水平归一为 %，ETF 与指数在截面上可比）</td>
           </tr>
           <tr>
             <td>ADX 方向 (trend_adx)</td><td>ADX(14) 趋势强度，+DI > -DI 时为多头趋势</td>
@@ -524,33 +535,33 @@
             <td>20日收益率 (mom_return_20)</td><td>近 20 个交易日的价格涨幅，横截面排名</td>
           </tr>
           <tr>
-            <td>超额收益 RS20 (mom_rs20)</td><td>20日收益率 − 同期沪深300收益率，衡量相对强度</td>
+            <td>60日收益率 (mom_return_60)</td><td>近 60 个交易日涨幅，衡量中期动量延续（RS20 超额收益仅作展示——截面标准化后与 20 日收益完全同质，不重复计权）</td>
           </tr>
           <tr>
             <td rowspan="2"><strong>资金</strong></td>
             <td rowspan="2" class="w-label" style="color:var(--blue)">25%</td>
-            <td>1日主力净流入 (flow_main_net)</td><td>当日主力资金净流入额（大单买卖之差）</td>
+            <td>1日主力净占比 (flow_intensity_1d)</td><td>主力净流入 ÷ 板块成交额 ×100%，按板块规模归一后跨板块可比；净流入额（亿元）仅作展示</td>
           </tr>
           <tr>
-            <td>5日主力净流入 (flow_main_net_5d)</td><td>过去 5 个交易日累计主力净流入，反映持续资金偏好</td>
+            <td>5日主力净占比 (flow_intensity_5d)</td><td>过去 5 个交易日净占比均值，反映持续资金偏好</td>
           </tr>
           <tr>
             <td rowspan="3"><strong>广度</strong></td>
             <td rowspan="3" class="w-label" style="color:var(--blue)">20%</td>
-            <td>涨跌家数比 (breadth_adv_decline)</td><td>板块内上涨股票数 ÷ 板块总股票数</td>
+            <td>涨跌家数比 (breadth_adv_decline)</td><td>板块内（上涨数 − 下跌数）÷ 总数。轮动视图不拉取成分股，无真实数据时该组<strong>不参与评分</strong>（权重重分配），不以 0 分占位</td>
           </tr>
           <tr>
-            <td>站上MA20占比 (breadth_pct_above_ma20)</td><td>板块内收盘价 > MA20 的股票比例，衡量趋势参与度</td>
+            <td>站上MA20占比 (breadth_pct_above_ma20)</td><td>板块内收盘价 > MA20 的股票比例，衡量趋势参与度（明细页展示）</td>
           </tr>
           <tr>
-            <td>站上MA60占比 (breadth_pct_above_ma60)</td><td>板块内收盘价 > MA60 的股票比例，衡量中期健康度</td>
+            <td>站上MA60占比 (breadth_pct_above_ma60)</td><td>板块内收盘价 > MA60 的股票比例，衡量中期健康度（明细页展示）</td>
           </tr>
         </tbody>
       </table>
 
       <div class="callout">
-        <div class="callout-title">拥挤度修正（不计入基础权重）</div>
-        换手率因子 (crowd_turnover) 作为修正项：极高换手率（>3σ）会适度下调综合得分，防止追高过热板块；极低换手率(<−2σ) 则小幅下调，因流动性不足。
+        <div class="callout-title">拥挤度（风险因子，不进综合分）</div>
+        换手率因子 (crowd_turnover) 定义为风险警示项：换手截面显著偏高（标准化后 > 0.8，约 +1.6σ）且动量强（> 0.5）时，触发 <code>RISK3:交易拥挤</code> 警示并折减置信度 0.10，提示追高风险。
       </div>
     </div>
 
@@ -564,14 +575,16 @@
       <p>这样每个因子的值域归一化到 [−1, +1]，消除量纲差异，使不同因子可以直接加权合并。截断点 ±1 防止极端值主导结果。</p>
 
       <h4>第二步：组内加权</h4>
-      <div class="formula">trend     = MA排列×0.35 + MACD×0.35 + ADX×0.30
-momentum  = 20日收益率×0.45 + RS20×0.55
-flow      = 1日净流入×0.55 + 5日净流入×0.45
-breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
+      <div class="formula">trend     = MA排列×0.35 + MACD(%价)×0.35 + ADX×0.30
+momentum  = 20日收益率×0.60 + 60日收益率×0.40
+flow      = 1日净占比×0.55 + 5日净占比×0.45
+breadth   = 涨跌家数比（有真实成分股数据时）</div>
+      <p>组内任一因子缺失时，其权重按比例重分配给同组可用因子，不以 0 分占位。</p>
 
       <h4>第三步：综合评分</h4>
-      <div class="formula">composite = trend×0.30 + momentum×0.25 + flow×0.25 + breadth×0.20</div>
-      <p>综合得分范围 [−1, +1]，0 为横截面中位水平，正值代表相对强势，负值代表相对弱势。</p>
+      <div class="formula">composite = trend×0.30 + momentum×0.25 + flow×0.25 + breadth×0.20
+（缺失的组同样做权重重分配，例如无广度时 ≈ trend×0.375 + momentum×0.3125 + flow×0.3125）</div>
+      <p>综合得分范围 [−1, +1]，0 为横截面中位水平，正值代表相对强势，负值代表相对弱势。评级档位<strong>只由综合分决定</strong>。</p>
 
       <h4>第四步：评级映射</h4>
       <table class="factor-table">
@@ -586,12 +599,13 @@ breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
       </table>
 
       <h4>置信度</h4>
-      <p>置信度反映当前评级的数据质量，取值 [0, 1]，由以下条件累加：</p>
+      <p>置信度 = <strong>数据完备度</strong>，取值 [0.20, 1]，由以下条件累加，再按警示门控折减：</p>
       <ul>
-        <li>基础：0.50（只要有 K 线数据就有）</li>
+        <li>基础：0.40（只要有 K 线数据就有）</li>
         <li>ADX 可计算：+0.15</li>
-        <li>有真实资金流数据（非估算）：+0.20</li>
-        <li>广度数据已计算（非轮动板估算）：+0.15</li>
+        <li>有真实资金净占比数据：+0.25</li>
+        <li>有真实广度数据：+0.20</li>
+        <li>SG4/SG5 背离警示：每项 −0.15；RISK3 拥挤警示：−0.10（下限 0.20）</li>
       </ul>
       <p>置信度低于 0.6 时，建议谨慎对待评级结果。</p>
     </div>
@@ -616,17 +630,22 @@ breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
           </tr>
           <tr>
             <td><span class="gate-code">SG4</span></td>
-            <td>广度与趋势背离：趋势看多但广度因子为负（多数股票处于均线下方）</td>
-            <td>评级下调一档（如"强烈看多"→"看多"）</td>
+            <td>广度与动量背离：动量强但广度显著为负（多数股票并未跟涨）</td>
+            <td>警示标签 + 置信度 −0.15（<strong>不再降级评级</strong>——背离已通过因子权重反映在综合分中，避免双重惩罚）</td>
           </tr>
           <tr>
             <td><span class="gate-code">SG5</span></td>
-            <td>资金与动量背离：动量强但主力资金显著净流出（≤ −1σ）</td>
-            <td>评级下调一档</td>
+            <td>资金与动量背离：动量强但主力资金显著净流出</td>
+            <td>警示标签 + 置信度 −0.15</td>
+          </tr>
+          <tr>
+            <td><span class="gate-code">RISK3</span></td>
+            <td>交易拥挤：换手截面显著偏高叠加强动量</td>
+            <td>警示标签 + 置信度 −0.10</td>
           </tr>
         </tbody>
       </table>
-      <p>被触发的门控会在板块行和详情页中以标签形式显示，展示格式如 <code>SG4:广度背离</code>。</p>
+      <p>被触发的门控会在板块行和详情页中以标签形式显示，展示格式如 <code>SG4:广度背离</code>。硬门控（SG1/SG2）屏蔽评级；警示门控只影响置信度，评级档位始终与综合分一致。</p>
     </div>
 
     <!-- 价位模型 -->
@@ -634,13 +653,13 @@ breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
       <h3>ATR 价位模型</h3>
       <p>基于 14 日平均真实波幅（ATR14）动态估算进场区间、止损位和目标价位：</p>
 
-      <div class="formula">ATR14     = Wilder 平滑的14日真实波幅均值
+      <div class="formula">ATR14     = 14日真实波幅均值
 进场区低  = 最新收盘 − 0.3 × ATR14
 进场区高  = 最新收盘 + 0.3 × ATR14
-止损位    = 最新收盘 − 1.5 × ATR14   （约1.5倍日波动）
-目标价1   = 最新收盘 + 2.0 × ATR14   （盈亏比约 1:1.3）
-目标价2   = 最新收盘 + 3.5 × ATR14   （延伸目标）
-盈亏比    = (目标价1 − 收盘) / (收盘 − 止损)</div>
+止损位    = 最新收盘 − 1.5 × ATR14   （同时给出相对幅度 %）
+目标价1   = 最新收盘 + 2.0 × ATR14   （同时给出相对幅度 %）
+目标价2   = 最新收盘 + 3.5 × ATR14   （延伸目标）</div>
+      <p>价位一律以<strong>可交易的首选 ETF 行情</strong>为基准并在卡片上标注标的代码（指数点位不可交易）；无 ETF 映射的板块不提供价位区间。ATR 倍数固定时盈亏比是常数，因此改为报告止损/目标的相对幅度。</p>
 
       <div class="callout warn">
         <div class="callout-title">重要说明</div>

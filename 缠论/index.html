@@ -3,20 +3,71 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>缠论分析决策台 · ChanLun Decision Desk</title>
+  <title>缠论分析 · A股分析终端</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/tokens.css">
+  <link rel="stylesheet" href="/shared/ui.css">
   <link rel="stylesheet" href="/缠论/styles.css">
 </head>
 <body>
-  <div id="root"></div>
-  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
-  <script src="/缠论/js/data.js"></script>
-  <script type="text/babel" src="/缠论/js/chart.jsx"></script>
-  <script type="text/babel" src="/缠论/js/sections.jsx"></script>
-  <script type="text/babel" src="/缠论/js/app.jsx"></script>
+  <header class="top">
+    <a class="brand" href="/sector">
+      <span class="brand-mark">缠</span>
+      <span class="brand-text">
+        <strong>A股分析终端</strong>
+        <small>CZSC WORKBENCH · 缠论分析</small>
+      </span>
+    </a>
+    <nav class="module-tabs" aria-label="功能模块">
+      <a href="/sector">板块扫描</a>
+      <a class="active" href="/chanlun">缠论分析</a>
+      <a href="/decision">决策看板</a>
+      <a href="/review">大盘复盘</a>
+      <a href="/help">帮助</a>
+    </nav>
+  </header>
+
+  <div class="shell">
+    <section class="control">
+      <label>
+        <span>标的</span>
+        <input id="symbolInput" list="symbolList" placeholder="输入代码或名称，如 sh000300 / 600519 / 腾讯">
+        <datalist id="symbolList"></datalist>
+      </label>
+      <label>
+        <span>市场</span>
+        <select id="marketSelect">
+          <option value="all">全部</option>
+          <option value="index">指数</option>
+          <option value="a">A股</option>
+          <option value="hk">港股</option>
+        </select>
+      </label>
+      <label>
+        <span>周期</span>
+        <select id="periodSelect">
+          <option value="30m">30分钟</option>
+          <option value="day">日线</option>
+          <option value="week">周线</option>
+        </select>
+      </label>
+      <label>
+        <span>日期</span>
+        <input id="dateInput" type="date">
+      </label>
+      <button id="runBtn" class="btn primary">运行 CZSC</button>
+      <button id="refreshBtn" class="btn">重新拉取</button>
+    </section>
+
+    <section id="quickList" class="quick-list"></section>
+    <main id="app" class="content"></main>
+
+    <footer class="foot">
+      本页直接调用 waditu/czsc 核心对象进行结构识别，买卖点与背驰为规则计算结果，仅供学习研究和复盘，不构成投资建议。
+    </footer>
+  </div>
+  <script src="/缠论/js/app.js"></script>
 </body>
 </html>

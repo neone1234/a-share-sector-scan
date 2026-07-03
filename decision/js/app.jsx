@@ -76,6 +76,12 @@ function scoreConstituents(constituents) {
 }
 
 // ── K-line Canvas renderer ──────────────────────────────────────────────
+// canvas 无法直接用 var()，从共享 tokens 读取（fallback 与 tokens.css 保持一致）
+function themeVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+  return (v || '').trim() || fallback;
+}
+
 function renderKLine(canvas, bars) {
   const ctx  = canvas.getContext('2d');
   const dpr  = window.devicePixelRatio || 1;
@@ -107,24 +113,31 @@ function renderKLine(canvas, bars) {
   const bx     = i => PAD_L + i * barW + barW / 2;
   const volTop = H - VOL_H - PAD_B + 2;
 
+  const upColor   = themeVar('--up', '#bf3a30');
+  const downColor = themeVar('--down', '#1e8a5e');
+  const gridColor = themeVar('--chart-grid', '#ebe6d9');
+  const textColor = themeVar('--faint', '#b0aa9c');
+  const ma5Color  = themeVar('--chart-ma5', '#9a7b2f');
+  const ma20Color = themeVar('--chart-ma20', '#2c4a73');
+
   // Background
-  ctx.fillStyle = '#faf7f2';
+  ctx.fillStyle = themeVar('--paper', '#f3f1ea');
   ctx.fillRect(0, 0, W, H);
 
   // Horizontal grid + price labels
-  ctx.strokeStyle = '#e5ddd0';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth   = 0.5;
-  ctx.font = '9px -apple-system,PingFang SC,sans-serif';
+  ctx.font = '9px IBM Plex Mono,-apple-system,PingFang SC,sans-serif';
   [0, 0.25, 0.5, 0.75, 1].forEach(t => {
     const y = PAD_T + t * PRICE_H;
     ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - PAD_R + 4, y); ctx.stroke();
-    ctx.fillStyle = '#9b8e80';
+    ctx.fillStyle = textColor;
     ctx.textAlign = 'left';
     ctx.fillText((maxP - pRange * t).toFixed(2), W - PAD_R + 7, y + 3);
   });
 
-  // MA5 (gold) and MA20 (blue)
-  [[5, '#c8900a'], [20, '#2a5fa5']].forEach(([period, color]) => {
+  // MA5 / MA20 均线（颜色统一走 tokens：金 / 蓝）
+  [[5, ma5Color], [20, ma20Color]].forEach(([period, color]) => {
     ctx.strokeStyle = color;
     ctx.lineWidth   = 1;
     ctx.globalAlpha = 0.85;
@@ -144,7 +157,7 @@ function renderKLine(canvas, bars) {
     const b     = bars[i];
     const x     = bx(i);
     const isUp  = b.close >= b.open;
-    const color = isUp ? '#bf3a30' : '#1e8a5e';
+    const color = isUp ? upColor : downColor;
 
     // Wick
     ctx.strokeStyle = color;
@@ -169,20 +182,22 @@ function renderKLine(canvas, bars) {
     // Volume
     if (b.volume) {
       const vh = Math.max(1, (b.volume / maxVol) * (VOL_H - 4));
-      ctx.fillStyle = isUp ? 'rgba(191,58,48,0.35)' : 'rgba(30,138,94,0.35)';
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = color;
       ctx.fillRect(x - cndW / 2, volTop + (VOL_H - 4 - vh), cndW, vh);
+      ctx.globalAlpha = 1;
     }
   }
 
   // Volume divider
-  ctx.strokeStyle = '#e0d8cc';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth   = 0.5;
   ctx.beginPath(); ctx.moveTo(PAD_L, volTop); ctx.lineTo(W - PAD_R + 4, volTop); ctx.stroke();
 
   // Date labels (6 evenly spaced)
-  ctx.fillStyle = '#9b8e80';
+  ctx.fillStyle = textColor;
   ctx.textAlign = 'center';
-  ctx.font      = '9px -apple-system,PingFang SC,sans-serif';
+  ctx.font      = '9px IBM Plex Mono,-apple-system,PingFang SC,sans-serif';
   const step = Math.ceil(n / 6);
   for (let i = 0; i < n; i += step) {
     const d = bars[i]?.date;
@@ -236,8 +251,8 @@ function KLineChart({ type, name }) {
     <div style={{ margin: '14px 0' }}>
       <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 5 }}>
         <span style={{ fontSize: 11, color: 'var(--ink3)' }}>近一年日线 · {bars.length} 根</span>
-        <span style={{ fontSize: 10, color: '#c8900a' }}>━ MA5</span>
-        <span style={{ fontSize: 10, color: '#2a5fa5' }}>━ MA20</span>
+        <span style={{ fontSize: 10, color: 'var(--chart-ma5)' }}>━ MA5</span>
+        <span style={{ fontSize: 10, color: 'var(--chart-ma20)' }}>━ MA20</span>
         <span style={{ fontSize: 10, color: 'var(--up)', marginLeft: 'auto' }}>☐ 阳线</span>
         <span style={{ fontSize: 10, color: 'var(--down)' }}>■ 阴线</span>
       </div>
@@ -279,7 +294,7 @@ function FactorBar({ norm }) {
   return (
     <div className="factor-bar">
       <div className="factor-bar-fill" style={{ left, width: `${pct / 2}%`, background: color }} />
-      <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: '#d8d3c8' }} />
+      <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: 'var(--hair)' }} />
     </div>
   );
 }
@@ -432,7 +447,7 @@ function FactorGroups({ factors, groupScores }) {
               <span className="group-name">{GROUP_LABELS[g] || g}</span>
               <div className="group-score-bar">
                 <div className="group-score-fill" style={{ left, width: `${pct / 2}%`, background: color }} />
-                <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: '#cfc7b6' }} />
+                <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: 'var(--hair)' }} />
               </div>
               <span className={`group-score-val ${compositeClass(gs)}`}>{gs != null ? (gs > 0 ? '+' : '') + gs.toFixed(3) : '—'}</span>
               <span className={`chevron${open[g] ? ' open' : ''}`}>▾</span>
@@ -453,7 +468,7 @@ function FactorGroups({ factors, groupScores }) {
                     <FactorBar norm={norm} />
                     <span className="factor-raw">
                       {raw == null ? 'N/A' : typeof raw === 'number'
-                        ? (Math.abs(raw) > 100 ? (raw / 10000).toFixed(1) + '万' : raw.toFixed(raw % 1 === 0 ? 0 : 3))
+                        ? raw.toFixed(raw % 1 === 0 ? 0 : Math.abs(raw) >= 100 ? 1 : 3)
                         : raw}
                     </span>
                     <span className={`factor-norm ${compositeClass(norm)}`}>
@@ -521,14 +536,20 @@ function BreadthPanel({ factors }) {
 function TargetPriceCard({ tp }) {
   if (!tp) return (
     <div className="target-card">
-      <div className="card-title">目标价位</div>
-      <div style={{ color: 'var(--ink2)', fontSize: 12 }}>数据不足，无法计算</div>
+      <div className="card-title">观察价位</div>
+      <div style={{ color: 'var(--ink2)', fontSize: 12 }}>无可交易 ETF 代理或数据不足，不提供价位区间</div>
     </div>
   );
   const stopLabel = tp.stop_method ? `止损位 (${tp.stop_method})` : '止损位 (ATR×1.5)';
+  const pct = v => (v == null ? '' : ` (${v > 0 ? '+' : ''}${v.toFixed(1)}%)`);
   return (
     <div className="target-card">
-      <div className="card-title">目标价位 · ATR模型</div>
+      <div className="card-title">观察价位 · ATR模型</div>
+      {tp.basis && (
+        <div style={{ fontSize: 11, color: 'var(--navy)', marginBottom: 8 }}>
+          基准标的：{tp.basis.name} <span style={{ fontFamily: 'var(--mono)' }}>{tp.basis.code}</span>（{tp.basis.type}，可交易）
+        </div>
+      )}
       <div className="target-zone">
         <span className="zone-label">进场参考区</span>
         <span className="zone-range">{tp.entry_low} — {tp.entry_high}</span>
@@ -540,23 +561,19 @@ function TargetPriceCard({ tp }) {
         </div>
         <div className="target-row">
           <span className="target-label">{stopLabel}</span>
-          <span className="target-val down">{tp.stop_loss}</span>
+          <span className="target-val down">{tp.stop_loss}{pct(tp.stop_loss_pct)}</span>
         </div>
         <div className="target-row">
           <span className="target-label">目标1 (ATR×2)</span>
-          <span className="target-val up">{tp.target_1}</span>
+          <span className="target-val up">{tp.target_1}{pct(tp.target_1_pct)}</span>
         </div>
         <div className="target-row">
           <span className="target-label">目标2 (ATR×3.5)</span>
-          <span className="target-val up">{tp.target_2}</span>
-        </div>
-        <div className="target-row">
-          <span className="target-label">ATR(14)</span>
-          <span className="target-val" style={{ color: 'var(--ink2)' }}>{tp.atr14}</span>
+          <span className="target-val up">{tp.target_2}{pct(tp.target_2_pct)}</span>
         </div>
         <div className="target-row" style={{ borderBottom: 'none' }}>
-          <span className="target-label">盈亏比 (目标1)</span>
-          <span className="rr-badge">R:{tp.risk_reward}</span>
+          <span className="target-label">ATR(14)</span>
+          <span className="target-val" style={{ color: 'var(--ink2)' }}>{tp.atr14}</span>
         </div>
       </div>
       <div className="disclaimer">{tp.note}</div>
@@ -594,7 +611,7 @@ function SectorView({ sectorName, date, onBack, onSelectStock, refreshTrigger, f
           <div className="sector-hero">
             <h2>{data.name}</h2>
             <TierBadge tier={data.tier} />
-            <div className="confidence-meter">
+            <div className="confidence-meter" title={data.confidence_note || '置信度=数据完备度'}>
               <div className="confidence-bar"><div className="confidence-bar-fill" style={{ width: `${(data.confidence || 0) * 100}%` }} /></div>
               <span>{data.confidence != null ? (data.confidence * 100).toFixed(0) + '% 置信' : ''}</span>
             </div>
@@ -654,7 +671,7 @@ function SectorView({ sectorName, date, onBack, onSelectStock, refreshTrigger, f
                       </span>
                     ))}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 4 }}>价位仍以板块指数为基准，ETF仅供操作参考。</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink2)', marginTop: 4 }}>观察价位以首选 ETF 行情为基准（可交易口径）。</div>
                 </div>
               )}
 
@@ -803,8 +820,8 @@ function Header({ view, sectorName, stockName, date, onDateChange, onBackToRotat
       <a className="brand" href="/sector">
         <div className="brand-mark">决</div>
         <div className="brand-text">
-          <strong>决策看板</strong>
-          <small>DECISION BOARD</small>
+          <strong>A股分析终端</strong>
+          <small>DECISION BOARD · 决策看板</small>
         </div>
       </a>
       <nav className="module-tabs" aria-label="功能模块">

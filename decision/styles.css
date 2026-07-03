@@ -1,18 +1,5 @@
-:root {
-  --paper: #f3f1ea;
-  --card: #fffdf8;
-  --ink: #20242c;
-  --ink2: #6b6f78;
-  --hair: #e4dfd2;
-  --accent: #a63a32;
-  --gold: #9a7b2f;
-  --navy: #2c4a73;
-  --up: #bf3a30;
-  --down: #1e8a5e;
-  --serif: 'Noto Serif SC', 'Songti SC', serif;
-  --sans: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
-}
+/* 决策看板 · 页面样式
+   调色板/字体来自 /shared/tokens.css，头部/按钮/卡片/tier 徽章来自 /shared/ui.css。 */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { min-height: 100%; background: var(--paper); }
 body { color: var(--ink); font: 14px/1.6 var(--sans); min-width: 960px; -webkit-font-smoothing: antialiased; }
@@ -22,48 +9,6 @@ a { color: inherit; text-decoration: none; }
 
 /* ── layout ── */
 .page { max-width: 1280px; margin: 0 auto; padding: 0 32px 64px; }
-.top {
-  display: flex; align-items: center; gap: 18px; padding: 16px 36px;
-  border-bottom: 1px solid var(--hair); position: sticky; top: 0; z-index: 40;
-  background: rgba(243,241,234,0.94); backdrop-filter: blur(18px);
-  max-width: 100%;
-}
-.brand { display: flex; align-items: center; gap: 11px; text-decoration: none; flex-shrink: 0; }
-.brand-mark {
-  width: 38px; height: 38px; display: grid; place-items: center;
-  background: var(--accent); color: #fdf9f0; border-radius: 3px;
-  font: 900 22px/1 var(--serif);
-}
-.brand-text { display: flex; flex-direction: column; line-height: 1.25; }
-.brand-text strong { font: 700 17px/1.25 var(--serif); letter-spacing: 0.06em; }
-.brand-text small { font-size: 10px; color: var(--ink2); letter-spacing: 0.14em; text-transform: uppercase; }
-.module-tabs {
-  display: inline-flex; gap: 2px; padding: 2px;
-  border: 1px solid var(--hair); border-radius: 4px; background: var(--card); flex-shrink: 0;
-}
-.module-tabs a {
-  text-decoration: none; color: var(--ink2);
-  font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 3px; white-space: nowrap;
-}
-.module-tabs a.active { color: #fdf9f0; background: var(--ink); }
-.module-tabs a:hover:not(.active) { background: #f1ede1; color: var(--ink); }
-.top-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
-.date-field {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--ink2); white-space: nowrap;
-}
-.date-field input {
-  width: 132px; height: 31px; border: 1px solid var(--hair);
-  background: var(--card); border-radius: 3px; padding: 0 8px; color: var(--ink);
-}
-.mini-btn {
-  height: 31px; padding: 0 12px; border: 1px solid var(--hair);
-  background: var(--card); color: var(--ink); border-radius: 3px; font-size: 12px; font-weight: 700;
-}
-.mini-btn:hover { border-color: #cfc7b6; background: #f8f4ea; }
-.mini-btn:disabled { opacity: .5; cursor: wait; }
-.mini-btn.primary { background: var(--ink); color: #fdf9f0; border-color: var(--ink); }
-.mini-btn.primary:hover { background: #363a44; }
 .breadcrumb {
   display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink2);
 }
@@ -72,29 +17,6 @@ a { color: inherit; text-decoration: none; }
   cursor: pointer; text-decoration: underline;
 }
 .breadcrumb .sep { color: var(--hair); }
-
-/* ── cards ── */
-.card {
-  background: var(--card); border: 1px solid var(--hair); border-radius: 6px;
-  padding: 18px 20px;
-}
-.card-title {
-  font: 700 11px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--ink2); margin-bottom: 12px;
-}
-
-/* ── tier badges ── */
-.tier {
-  display: inline-block; font: 700 11px/1 var(--mono);
-  padding: 3px 8px; border-radius: 3px; white-space: nowrap;
-  letter-spacing: 0.05em;
-}
-.tier-strong-buy  { background: var(--up); color: #fff; }
-.tier-buy         { background: rgba(191,58,48,0.18); color: var(--up); border: 1px solid rgba(191,58,48,.35); }
-.tier-neutral     { background: rgba(154,123,47,0.14); color: var(--gold); border: 1px solid rgba(154,123,47,.35); }
-.tier-sell        { background: rgba(30,138,94,0.14); color: var(--down); border: 1px solid rgba(30,138,94,.35); }
-.tier-strong-sell { background: var(--down); color: #fff; }
-.tier-no-signal   { background: rgba(107,111,120,0.14); color: var(--ink2); border: 1px solid var(--hair); }
 
 /* ── rotation board ── */
 .rotation-header {
@@ -142,9 +64,7 @@ a { color: inherit; text-decoration: none; }
 }
 .gate-pill.warn { background: rgba(154,123,47,0.12); color: var(--gold); border-color: rgba(154,123,47,.25); }
 .score-num { font: 500 12px/1 var(--mono); }
-.up { color: var(--up); }
-.down { color: var(--down); }
-.flat { color: var(--ink2); }
+/* .up/.down/.flat 来自 shared/ui.css */
 
 /* ── sector detail ── */
 .sector-detail { padding: 20px 0; }
@@ -239,11 +159,7 @@ a { color: inherit; text-decoration: none; }
 .cons-table td { padding: 7px 8px; border-bottom: 1px solid var(--hair); vertical-align: middle; }
 .cons-table tbody tr { cursor: pointer; transition: background 0.1s; }
 .cons-table tbody tr:hover { background: #faf7f0; }
-.leader-tag {
-  display: inline-block; font: 700 9px/1 var(--mono); padding: 2px 5px;
-  background: rgba(154,123,47,0.15); color: var(--gold);
-  border: 1px solid rgba(154,123,47,.3); border-radius: 2px; margin-left: 6px;
-}
+/* .leader-tag 统一定义见文件末尾（红底白字） */
 
 /* ── evidence ── */
 .evidence-card { background: rgba(44,74,115,0.05); border: 1px solid rgba(44,74,115,.18); border-radius: 6px; padding: 14px 16px; margin-top: 12px; }
