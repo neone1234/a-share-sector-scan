@@ -36,11 +36,11 @@
       ? parts : fallback.split(',').map(Number);
   }
   const HEAT = {
-    upWeak: heatTriplet('--heat-up-weak', '232,150,148'),
-    upStrong: heatTriplet('--heat-up-strong', '178,33,31'),
-    downWeak: heatTriplet('--heat-down-weak', '120,190,155'),
-    downStrong: heatTriplet('--heat-down-strong', '0,110,71'),
-    flat: heatTriplet('--heat-flat', '150,162,184'),
+    upWeak: heatTriplet('--heat-up-weak', '74,32,30'),
+    upStrong: heatTriplet('--heat-up-strong', '199,62,54'),
+    downWeak: heatTriplet('--heat-down-weak', '26,66,50'),
+    downStrong: heatTriplet('--heat-down-strong', '46,168,112'),
+    flat: heatTriplet('--heat-flat', '66,74,86'),
   };
   function heatColor(v, maxAbs) {
     const t = clamp(Math.abs(v) / (maxAbs || 1), 0.12, 1);
@@ -253,7 +253,7 @@
       const macdColor = t.macd > 0 ? 'var(--up)' : 'var(--down)';
       const difColor = t.dif > 0 ? 'var(--up)' : 'var(--down)';
       const sigColor = t.signal === 'BEAR' ? 'var(--down)' : t.signal === 'BULL' ? 'var(--up)' : 'var(--amber)';
-      const sigBg = t.signal === 'BEAR' ? 'var(--down-soft)' : t.signal === 'BULL' ? 'var(--up-soft)' : 'rgba(179,118,11,0.1)';
+      const sigBg = t.signal === 'BEAR' ? 'var(--down-soft)' : t.signal === 'BULL' ? 'var(--up-soft)' : 'rgba(91,78,150,0.1)';
       const b = el('div', 'tech-block');
       b.innerHTML = `
         <div class="tech-head">

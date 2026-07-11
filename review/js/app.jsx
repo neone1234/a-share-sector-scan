@@ -34,7 +34,7 @@ function sourceSummary(meta) {
 
 // 信号灯配色对齐 A 股涨红跌绿：green(可进攻)=红、yellow(观察)=金、red(防守)=绿。
 // 后端状态键名 green/yellow/red 保留不动，仅在展示层重新映射颜色。
-const STATUS_COLOR = { green: 'var(--up)', yellow: 'var(--gold)', red: 'var(--down)' };
+const STATUS_COLOR = { green: 'var(--up)', yellow: 'var(--violet)', red: 'var(--down)' };
 
 function SignalGauge({ signal }) {
   if (!signal) return null;
@@ -42,7 +42,7 @@ function SignalGauge({ signal }) {
   const r = 48, C = 2 * Math.PI * r;
   const pct = Math.max(0, Math.min(100, score));
   const offset = C - (pct / 100) * C;
-  const color = STATUS_COLOR[status] || 'var(--gold)';
+  const color = STATUS_COLOR[status] || 'var(--violet)';
 
   return (
     <div className="signal-hero">
@@ -107,27 +107,32 @@ function IndexGrid({ indices }) {
 function BreadthSection({ breadth }) {
   if (!breadth) return null;
   const { up_count, down_count, flat_count, limit_up_count, limit_down_count, total_amount } = breadth;
-  const up = Number(up_count) || 0, down = Number(down_count) || 0, flat = Number(flat_count) || 0;
+  const flatAvailable = breadth.flat_available !== false;
+  const up = Number(up_count) || 0, down = Number(down_count) || 0, flat = flatAvailable ? (Number(flat_count) || 0) : 0;
   const total = up + down + flat;
-  const upW = total > 0 ? (up / total * 100) : 33;
-  const flatW = total > 0 ? (flat / total * 100) : 34;
-  const downW = total > 0 ? (down / total * 100) : 33;
+  const upW = total > 0 ? (up / total * 100) : 50;
+  const flatW = total > 0 ? (flat / total * 100) : 0;
+  const downW = total > 0 ? (down / total * 100) : 50;
+  const sampleText = breadth.coverage != null
+    ? `样本 ${fmt(breadth.sample_size)} / ${fmt(breadth.universe_size)} · 覆盖 ${breadth.coverage}%`
+    : `样本 ${fmt(breadth.sample_size)}`;
+  const amountChangeText = breadth.amount_change_pct == null ? '' : ` · 较前日 ${fmtPct(Number(breadth.amount_change_pct))}`;
 
   return (
     <React.Fragment>
       <div className="breadth-row">
         <div className="breadth-card">
-          <div className="bc-label">上涨</div>
+          <div className="bc-label">上涨股票</div>
           <div className="bc-val" style={{ color: 'var(--up)' }}>{fmt(up_count)}</div>
           <div className="bc-sub">涨停 {fmt(limit_up_count)}</div>
         </div>
         <div className="breadth-card">
-          <div className="bc-label">平盘</div>
-          <div className="bc-val">{breadth.flat_available === false ? '—' : fmt(flat_count)}</div>
-          <div className="bc-sub">成交额 {fmtAmt(total_amount)}</div>
+          <div className="bc-label">平盘股票</div>
+          <div className="bc-val">{flatAvailable ? fmt(flat_count) : '—'}</div>
+          <div className="bc-sub">成交额 {fmtAmt(total_amount)}{amountChangeText}</div>
         </div>
         <div className="breadth-card">
-          <div className="bc-label">下跌</div>
+          <div className="bc-label">下跌股票</div>
           <div className="bc-val" style={{ color: 'var(--down)' }}>{fmt(down_count)}</div>
           <div className="bc-sub">跌停 {fmt(limit_down_count)}</div>
         </div>
@@ -135,56 +140,64 @@ function BreadthSection({ breadth }) {
       <div className="breadth-bar-wrap">
         <div className="breadth-stacked">
           <div className="seg up-seg" style={{ width: upW + '%' }}>{up_count}</div>
-          <div className="seg flat-seg" style={{ width: flatW + '%' }}>{flat_count}</div>
+          {flatAvailable && <div className="seg flat-seg" style={{ width: flatW + '%' }}>{flat_count}</div>}
           <div className="seg down-seg" style={{ width: downW + '%' }}>{down_count}</div>
         </div>
         <div className="breadth-legend">
           <span>上涨 {upW.toFixed(1)}%</span>
-          <span>平盘 {flatW.toFixed(1)}%</span>
+          {flatAvailable && <span>平盘 {flatW.toFixed(1)}%</span>}
           <span>下跌 {downW.toFixed(1)}%</span>
         </div>
+        <div className="breadth-source">{sampleText} · {breadth.turnover_scope || breadth.scope || '股票涨跌统计'}</div>
       </div>
     </React.Fragment>
   );
 }
 
-function SectorRankings({ sectors }) {
-  if (!sectors) return null;
-  const { top, bottom } = sectors;
-  const renderList = (items, label, isTop) => (
-    <div className="sector-list">
-      <h4>{label}</h4>
-      {(items || []).map((s, i) => (
-        <div key={s.name} className="sr-row">
-          <span className="sr-rank">{i + 1}</span>
-          <span className="sr-name">{s.name}</span>
-          <span className="sr-pct" style={{ color: s.change_pct >= 0 ? 'var(--up)' : 'var(--down)' }}>
-            {fmtPct(s.change_pct)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-  return (
-    <div className="sector-cols">
-      {renderList(top, '领涨板块', true)}
-      {renderList(bottom, '领跌板块', false)}
-    </div>
-  );
+function sectorRows(sectors) {
+  if (!sectors) return [];
+  const hasFullList = Array.isArray(sectors.all) && sectors.all.length;
+  const raw = hasFullList ? sectors.all : [...(sectors.top || []), ...(sectors.bottom || [])];
+  const seen = new Set();
+  const rows = raw.filter(item => {
+    const key = item && (item.symbol || item.name);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return hasFullList ? rows : rows.sort((a, b) => Number(b.change_pct || 0) - Number(a.change_pct || 0));
 }
 
-function NewsSection({ news }) {
-  if (!news || !news.length) return null;
+function SectorRankings({ sectors }) {
+  const rows = sectorRows(sectors);
+  if (!rows.length) return null;
   return (
-    <div className="news-grid">
-      {news.map((n, i) => (
-        <div key={i} className="news-item">
-          {n.tag && <span className="ni-tag">{n.tag}</span>}
-          <div className="ni-text">
-            {n.url ? <a href={n.url} target="_blank" rel="noopener">{n.summary}</a> : n.summary}
+    <div className="sector-list full">
+      <div className="sector-table-head">
+        <span>排名</span>
+        <span>板块</span>
+        <span>当日</span>
+        <span>5日</span>
+        <span>20日</span>
+        <span>成交额</span>
+      </div>
+      {rows.map((s, i) => {
+        const change = s.change_pct == null ? null : Number(s.change_pct);
+        const changeClass = change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
+        return (
+          <div key={s.symbol || s.name} className="sr-row">
+            <span className="sr-rank">{i + 1}</span>
+            <span className="sr-name">
+              {s.name}
+              {s.classification && <small>{s.classification}</small>}
+            </span>
+            <span className={`sr-pct ${changeClass}`}>{fmtPct(change)}</span>
+            <span className="sr-subpct">{fmtPct(s.d5)}</span>
+            <span className="sr-subpct">{fmtPct(s.d20)}</span>
+            <span className="sr-amount">{fmtAmt(s.amount)}</span>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -430,19 +443,16 @@ function App() {
         <SectionHead no="1" title="指数行情" hint={`主要宽基指数 · 行情日 ${data.meta?.trade_date || data.date}`} />
         <IndexGrid indices={data.indices} />
 
-        <SectionHead no="2" title="市场温度" hint={`${data.breadth?.scope || '市场宽度'} · 不从明细累加`} />
+        <SectionHead no="2" title="市场温度" hint={`${data.breadth?.scope || '股票涨跌统计'} · 股票上涨/下跌数量`} />
         <BreadthSection breadth={data.breadth} />
 
-        <SectionHead no="3" title="板块轮动" hint="全行业指数涨跌幅 Top / Bottom 5（非 ETF 代理）" />
+        <SectionHead no="3" title="板块轮动" hint="全行业指数涨跌幅完整列表" />
         <SectorRankings sectors={data.sectors} />
 
-        <SectionHead no="4" title="财经快讯" hint="最新市场资讯" />
-        <NewsSection news={data.news} />
-
-        <SectionHead no="5" title="复盘报告" hint={data.meta ? `模型: ${data.meta.llm_model || 'template'}` : ''} />
+        <SectionHead no="4" title="复盘报告" hint={data.meta ? `模型: ${data.meta.llm_model || 'template'}` : ''} />
         <ReportSections sections={data.report_sections} />
 
-        <SectionHead no="6" title="历史复盘" />
+        <SectionHead no="5" title="历史复盘" />
         <HistoryList history={history} onSelect={handleDateChange} activeDate={selectedDate} />
 
         <footer className="foot">
@@ -471,9 +481,9 @@ function Header({ selectedDate, onDateChange, loading, cached, onRefresh }) {
       </a>
       <nav className="module-tabs" aria-label="功能模块">
         <a href="/sector">板块扫描</a>
-        <a href="/chanlun">缠论分析</a>
         <a href="/decision">决策看板</a>
         <a className="active" href="/review">大盘复盘</a>
+        <a href="/rotation">轮动监控</a>
         <a href="/help">帮助</a>
       </nav>
       <div className="top-actions">

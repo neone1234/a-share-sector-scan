@@ -33,7 +33,7 @@ function TierBadge({ tier }) {
 function compositeColor(v) {
   if (v > 0.2) return 'var(--up)';
   if (v < -0.2) return 'var(--down)';
-  return 'var(--gold)';
+  return 'var(--violet)';
 }
 
 function compositeClass(v) {
@@ -117,7 +117,7 @@ function renderKLine(canvas, bars) {
   const downColor = themeVar('--down', '#1e8a5e');
   const gridColor = themeVar('--chart-grid', '#ebe6d9');
   const textColor = themeVar('--faint', '#b0aa9c');
-  const ma5Color  = themeVar('--chart-ma5', '#9a7b2f');
+  const ma5Color  = themeVar('--chart-ma5', '#5b4e96');
   const ma20Color = themeVar('--chart-ma20', '#2c4a73');
 
   // Background
@@ -136,7 +136,7 @@ function renderKLine(canvas, bars) {
     ctx.fillText((maxP - pRange * t).toFixed(2), W - PAD_R + 7, y + 3);
   });
 
-  // MA5 / MA20 均线（颜色统一走 tokens：金 / 蓝）
+  // MA5 / MA20 均线（颜色统一走 tokens：紫 / 蓝）
   [[5, ma5Color], [20, ma20Color]].forEach(([period, color]) => {
     ctx.strokeStyle = color;
     ctx.lineWidth   = 1;
@@ -290,7 +290,7 @@ function FactorBar({ norm }) {
   if (norm == null) return <div className="factor-bar"><span style={{ fontSize: 10, color: 'var(--hair)', paddingLeft: 3 }}>N/A</span></div>;
   const pct   = Math.abs(norm) * 100;
   const left  = norm >= 0 ? '50%' : `${50 - pct / 2}%`;
-  const color = norm > 0.1 ? 'var(--up)' : norm < -0.1 ? 'var(--down)' : 'var(--gold)';
+  const color = norm > 0.1 ? 'var(--up)' : norm < -0.1 ? 'var(--down)' : 'var(--violet)';
   return (
     <div className="factor-bar">
       <div className="factor-bar-fill" style={{ left, width: `${pct / 2}%`, background: color }} />
@@ -349,7 +349,7 @@ function RotationView({ date, onSelectSector, refreshTrigger, forceRefresh, onRe
           {data?.meta && (
             <div className="sub">
               交易日 {data.meta.tradeDate} · 共 {data.meta.sectorCount} 个板块参与排名
-              {data.meta.cacheHit && <span style={{ marginLeft: 8, color: 'var(--gold)' }}>● 缓存</span>}
+              {data.meta.cacheHit && <span style={{ marginLeft: 8, color: 'var(--violet)' }}>● 缓存</span>}
             </div>
           )}
         </div>
@@ -494,7 +494,7 @@ function BreadthPanel({ factors }) {
   const bar = (v, good) => {
     if (v == null) return null;
     const p     = Math.min(Math.abs(v) * 100, 100);
-    const color = v >= good ? 'var(--up)' : v < 0.3 ? 'var(--down)' : 'var(--gold)';
+    const color = v >= good ? 'var(--up)' : v < 0.3 ? 'var(--down)' : 'var(--violet)';
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ flex: 1, height: 4, background: 'var(--hair)', borderRadius: 2, overflow: 'hidden' }}>
@@ -521,7 +521,7 @@ function BreadthPanel({ factors }) {
                   return <div style={{ position: 'absolute', left: adv.norm >= 0 ? '50%' : `${50 - p}%`, width: `${p}%`, height: '100%', background: adv.norm >= 0 ? 'var(--up)' : 'var(--down)' }} />;
                 })()}
               </div>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: adv.norm > 0.1 ? 'var(--up)' : adv.norm < -0.1 ? 'var(--down)' : 'var(--gold)', minWidth: 36 }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: adv.norm > 0.1 ? 'var(--up)' : adv.norm < -0.1 ? 'var(--down)' : 'var(--violet)', minWidth: 36 }}>
                 {adv.raw != null ? (adv.raw > 0 ? '+' : '') + adv.raw.toFixed(2) : '—'}
               </span>
             </div>
@@ -627,7 +627,7 @@ function SectorView({ sectorName, date, onBack, onSelectStock, refreshTrigger, f
             <div className="meta-bar">
               <span>交易日 {data.meta.tradeDate}</span>
               <span>更新 {data.meta.asOf}</span>
-              {data.meta.cacheHit && <span style={{ color: 'var(--gold)' }}>● 缓存</span>}
+              {data.meta.cacheHit && <span style={{ color: 'var(--violet)' }}>● 缓存</span>}
             </div>
           )}
 
@@ -780,7 +780,7 @@ function StockView({ symbol, stockName, date, onBack, refreshTrigger, forceRefre
           {data.meta && (
             <div className="meta-bar">
               <span>交易日 {data.meta.tradeDate}</span>
-              {data.meta.cacheHit && <span style={{ color: 'var(--gold)' }}>● 缓存</span>}
+              {data.meta.cacheHit && <span style={{ color: 'var(--violet)' }}>● 缓存</span>}
             </div>
           )}
 
@@ -826,9 +826,9 @@ function Header({ view, sectorName, stockName, date, onDateChange, onBackToRotat
       </a>
       <nav className="module-tabs" aria-label="功能模块">
         <a href="/sector">板块扫描</a>
-        <a href="/chanlun">缠论分析</a>
         <a className="active" href="/decision">决策看板</a>
         <a href="/review">大盘复盘</a>
+        <a href="/rotation">轮动监控</a>
         <a href="/help">帮助</a>
       </nav>
       {view !== 'rotation' && (

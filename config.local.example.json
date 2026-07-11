@@ -26,7 +26,6 @@
   },
   "chanlun": {
     "bars": 220,
-    "westock_kline_limit": 260,
-    "engine": "rs-czsc"
+    "westock_kline_limit": 260
   }
 }

@@ -61,14 +61,14 @@ a { color: inherit; text-decoration: none; }
 /* 信号灯配色对齐 A 股涨红跌绿：green(可进攻)=红、yellow(观察)=金、red(防守)=绿。
    状态键名保留 green/yellow/red 以兼容后端与历史缓存。 */
 .signal-body .temp-label.green { background: var(--up-soft); color: var(--up); }
-.signal-body .temp-label.yellow { background: rgba(154,123,47,0.12); color: var(--gold); }
+.signal-body .temp-label.yellow { background: rgba(var(--violet-rgb),0.14); color: var(--violet); }
 .signal-body .temp-label.red { background: var(--down-soft); color: var(--down); }
 .signal-body .action-label { font: 700 14px var(--serif); margin-bottom: 2px; }
 .signal-body .guidance { font-size: 13px; color: var(--ink2); margin-bottom: 10px; }
 .signal-reasons { display: flex; flex-wrap: wrap; gap: 6px; }
 .signal-reasons .pill {
   font-size: 11px; padding: 3px 10px; border-radius: 100px;
-  background: #f0ece2; color: var(--ink); font-weight: 500;
+  background: var(--card-2); color: var(--ink); font-weight: 500;
 }
 
 /* ── section header ── */
@@ -96,8 +96,8 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex; align-items: center; gap: 4px;
   font: 600 13px var(--mono); padding: 2px 6px; border-radius: 3px;
 }
-.index-card .idx-chg.up { color: var(--up); background: rgba(191,58,48,0.08); }
-.index-card .idx-chg.down { color: var(--down); background: rgba(30,138,94,0.08); }
+.index-card .idx-chg.up { color: var(--up); background: var(--up-soft); }
+.index-card .idx-chg.down { color: var(--down); background: var(--down-soft); }
 .index-card .idx-meta { font-size: 11px; color: var(--ink2); }
 .index-card .idx-meta span { margin-right: 8px; }
 
@@ -124,46 +124,50 @@ a { color: inherit; text-decoration: none; }
   transition: width 0.4s ease;
 }
 .breadth-stacked .seg.up-seg { background: var(--up); }
-.breadth-stacked .seg.flat-seg { background: #aab0bc; }
+.breadth-stacked .seg.flat-seg { background: var(--faint); }
 .breadth-stacked .seg.down-seg { background: var(--down); }
 .breadth-legend {
   display: flex; justify-content: space-between; font-size: 11px; color: var(--ink2); margin-top: 4px;
 }
+.breadth-source {
+  margin-top: 6px; font: 500 11px var(--mono); color: var(--ink2); text-align: right;
+}
 
 /* ── sector rankings ── */
-.sector-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .sector-list {
   background: var(--card); border: 1px solid var(--hair); border-radius: 6px;
-  padding: 14px 16px;
+  padding: 6px 0; overflow: hidden;
 }
-.sector-list h4 {
-  font: 700 13px var(--serif); margin-bottom: 10px; color: var(--ink2);
-}
+.sector-table-head,
 .sector-list .sr-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 6px 0; border-bottom: 1px solid #f0ece2;
+  display: grid; grid-template-columns: 52px minmax(140px, 1fr) 88px 82px 82px 96px;
+  align-items: center; gap: 10px; padding: 8px 16px;
 }
+.sector-table-head {
+  color: var(--ink2); background: var(--card-2); border-bottom: 1px solid var(--hair);
+  font: 700 11px var(--mono);
+}
+.sector-list .sr-row { border-bottom: 1px solid var(--hair); }
 .sector-list .sr-row:last-child { border-bottom: none; }
+.sector-list .sr-row:hover { background: rgba(255,255,255,0.025); }
 .sector-list .sr-rank {
   width: 22px; height: 22px; display: grid; place-items: center;
-  background: #f0ece2; border-radius: 50%; font: 600 11px var(--mono); margin-right: 8px; flex-shrink: 0;
+  background: var(--card-2); border-radius: 50%; font: 600 11px var(--mono);
+  color: var(--ink2);
 }
-.sector-list .sr-name { font-size: 13px; font-weight: 600; flex: 1; }
-.sector-list .sr-pct { font: 600 13px var(--mono); }
-
-/* ── news ── */
-.news-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.news-item {
-  background: var(--card); border: 1px solid var(--hair); border-radius: 6px;
-  padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;
+.sector-list .sr-name {
+  min-width: 0; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px;
 }
-.news-item .ni-tag {
-  display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px;
-  border-radius: 2px; background: #f0ece2; color: var(--ink2); align-self: flex-start;
+.sector-list .sr-name small {
+  color: var(--ink2); font: 600 10px var(--mono); white-space: nowrap;
 }
-.news-item .ni-text { font-size: 13px; line-height: 1.5; color: var(--ink); }
-.news-item a { color: var(--navy); text-decoration: none; }
-.news-item a:hover { text-decoration: underline; }
+.sector-list .sr-pct {
+  font: 700 13px var(--mono); text-align: right; font-variant-numeric: tabular-nums;
+}
+.sector-list .sr-subpct,
+.sector-list .sr-amount {
+  font: 600 12px var(--mono); color: var(--ink2); text-align: right; font-variant-numeric: tabular-nums;
+}
 
 /* ── report sections ── */
 .report-sections { display: flex; flex-direction: column; gap: 12px; }
@@ -176,7 +180,7 @@ a { color: inherit; text-decoration: none; }
 }
 .report-card .rc-icon {
   width: 28px; height: 28px; display: grid; place-items: center;
-  background: rgba(166,58,50,0.08); color: var(--accent); border-radius: 6px;
+  background: rgba(var(--accent-rgb),0.08); color: var(--accent); border-radius: 6px;
   font-size: 14px;
 }
 .report-card .rc-title { font: 700 14px var(--serif); }
@@ -189,10 +193,10 @@ a { color: inherit; text-decoration: none; }
 .report-card .rc-body th, .report-card .rc-body td {
   text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--hair);
 }
-.report-card .rc-body th { font-weight: 700; background: #f8f5ed; }
+.report-card .rc-body th { font-weight: 700; background: var(--card-2); }
 .report-card .rc-body blockquote {
   border-left: 3px solid var(--accent); padding: 8px 14px; margin: 8px 0;
-  background: rgba(166,58,50,0.04); font-style: italic; color: var(--ink2);
+  background: rgba(var(--accent-rgb),0.04); font-style: italic; color: var(--ink2);
 }
 
 /* ── history ── */
@@ -204,7 +208,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--card); border: 1px solid var(--hair); border-radius: 6px;
   cursor: pointer; transition: border-color 0.15s;
 }
-.history-item:hover { border-color: #c8c1b2; }
+.history-item:hover { border-color: var(--hair-strong); }
 .history-item .hi-date { font: 600 13px var(--mono); width: 100px; flex-shrink: 0; }
 .history-item .hi-score {
   width: 36px; height: 36px; display: grid; place-items: center;
@@ -212,7 +216,7 @@ a { color: inherit; text-decoration: none; }
 }
 /* 同信号灯语义：green(可进攻)=红、yellow=金、red(防守)=绿 */
 .history-item .hi-score.green { background: var(--up-soft); color: var(--up); }
-.history-item .hi-score.yellow { background: rgba(154,123,47,0.12); color: var(--gold); }
+.history-item .hi-score.yellow { background: rgba(var(--violet-rgb),0.14); color: var(--violet); }
 .history-item .hi-score.red { background: var(--down-soft); color: var(--down); }
 .history-item .hi-label { font-size: 13px; color: var(--ink2); }
 
@@ -223,7 +227,7 @@ a { color: inherit; text-decoration: none; }
 }
 .loading-state .mark {
   width: 64px; height: 64px; display: grid; place-items: center;
-  background: var(--accent); color: #fdf9f0; border-radius: 6px;
+  background: var(--accent); color: var(--on-accent); border-radius: 6px;
   font: 900 36px/1 var(--serif);
 }
 .loading-state h2 { font: 700 18px var(--serif); }
@@ -234,7 +238,7 @@ a { color: inherit; text-decoration: none; }
 /* ── loading overlay ── */
 .loading-overlay {
   position: fixed; inset: 0; z-index: 50;
-  background: rgba(243,241,234,0.88); backdrop-filter: blur(6px);
+  background: var(--overlay); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center;
 }
 .loading-card {
@@ -246,10 +250,10 @@ a { color: inherit; text-decoration: none; }
 }
 .ls-step {
   font: 500 13px var(--sans); color: var(--ink2); padding: 4px 10px;
-  border-radius: 4px; background: #f0ece2; white-space: nowrap;
+  border-radius: 4px; background: var(--card-2); white-space: nowrap;
 }
-.ls-step.active { color: var(--accent); background: rgba(166,58,50,0.10); font-weight: 700; }
-.ls-step.done { color: var(--down); background: rgba(30,138,94,0.08); }
+.ls-step.active { color: var(--accent); background: rgba(var(--accent-rgb),0.10); font-weight: 700; }
+.ls-step.done { color: var(--ok); background: rgba(58,160,107,0.10); }
 .loading-elapsed {
   font: 600 15px var(--mono); color: var(--ink); text-align: center; margin-top: 8px;
 }
@@ -264,7 +268,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--card); color: var(--ink); border-radius: 3px;
   font: 600 12px var(--mono); cursor: pointer;
 }
-.date-control input[type="date"]:hover { border-color: #cfc7b6; }
+.date-control input[type="date"]:hover { border-color: var(--hair-strong); }
 .date-control input[type="date"]:focus { outline: none; border-color: var(--accent); }
 .date-control input[type="date"]:disabled { opacity: .58; cursor: wait; }
 
@@ -272,3 +276,30 @@ a { color: inherit; text-decoration: none; }
 .foot { padding: 32px 0; border-top: 1px solid var(--hair); margin-top: 48px; }
 .foot p { font-size: 11px; color: var(--ink2); line-height: 1.7; }
 .foot strong { color: var(--ink); margin-right: 6px; }
+
+@media (max-width: 760px) {
+  body { min-width: 0; }
+  .top { position: static; padding: 12px 14px; gap: 10px; }
+  .brand { width: 100%; }
+  .module-tabs { width: 100%; overflow-x: auto; }
+  .top-actions { width: 100%; margin-left: 0; justify-content: space-between; flex-wrap: wrap; }
+  .page { width: 100%; padding: 0 14px 44px; }
+  .completion-strip,
+  .signal-hero { flex-direction: column; align-items: stretch; }
+  .completion-main { align-items: flex-start; }
+  .health-list { justify-content: flex-start; }
+  .index-grid,
+  .breadth-row { grid-template-columns: 1fr; }
+  .breadth-card { text-align: left; }
+  .breadth-source { text-align: left; }
+  .sector-table-head { display: none; }
+  .sector-list .sr-row {
+    grid-template-columns: 34px minmax(0, 1fr) 78px;
+    gap: 8px; padding: 10px 12px;
+  }
+  .sector-list .sr-name { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .sector-list .sr-subpct,
+  .sector-list .sr-amount { display: none; }
+  .loading-card { width: calc(100vw - 28px); padding: 28px 18px; }
+  .loading-state { padding: 48px 0; }
+}

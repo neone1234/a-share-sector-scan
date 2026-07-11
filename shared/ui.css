@@ -8,7 +8,7 @@
 .top {
   display: flex; align-items: center; gap: 18px; padding: 16px 36px;
   border-bottom: 1px solid var(--hair); position: sticky; top: 0; z-index: 40;
-  background: rgba(243, 241, 234, 0.94); backdrop-filter: blur(18px);
+  background: var(--topbar-bg); backdrop-filter: blur(18px);
   flex-wrap: wrap;
 }
 
@@ -16,7 +16,7 @@
 .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; color: inherit; flex-shrink: 0; }
 .brand-mark {
   width: 38px; height: 38px; display: grid; place-items: center;
-  background: var(--accent); color: #fdf9f0; border-radius: 3px;
+  background: var(--accent); color: var(--on-accent); border-radius: 3px;
   font: 900 20px/1 var(--serif);
 }
 .brand-text { display: flex; flex-direction: column; line-height: 1.25; }
@@ -34,8 +34,8 @@
   font-size: 12px; font-weight: 700; padding: 5px 11px;
   border-radius: 3px; white-space: nowrap; letter-spacing: 0;
 }
-.module-tabs a:hover:not(.active) { background: #f1ede1; color: var(--ink); }
-.module-tabs a.active { color: #fdf9f0; background: var(--ink); }
+.module-tabs a:hover:not(.active) { background: var(--hover-bg); color: var(--ink); }
+.module-tabs a.active { color: var(--on-ink); background: var(--ink); }
 
 .top-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
 
@@ -58,15 +58,15 @@
   border-radius: 3px; font-family: var(--sans); font-size: 12px; font-weight: 700;
   cursor: pointer; white-space: nowrap; text-decoration: none; transition: all 0.15s ease;
 }
-.btn:hover, .mini-btn:hover, .action-btn:hover { background: #f8f4ea; border-color: #cfc7b6; }
+.btn:hover, .mini-btn:hover, .action-btn:hover { background: var(--hover-bg); border-color: var(--hair-strong); }
 .btn:disabled, .mini-btn:disabled { opacity: 0.5; cursor: wait; }
 .btn-primary, .btn.primary, .mini-btn.primary, .action-btn.primary {
-  background: var(--ink); border-color: var(--ink); color: #fdf9f0;
+  background: var(--ink); border-color: var(--ink); color: var(--on-ink);
 }
 .btn-primary:hover, .btn.primary:hover, .mini-btn.primary:hover { background: #363a44; filter: none; }
 .btn .spin {
   width: 12px; height: 12px; border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: var(--on-ink);
   display: none; animation: ui-spin 0.7s linear infinite;
 }
 .btn.loading { pointer-events: none; opacity: 0.92; }
@@ -87,7 +87,7 @@
 .pill {
   display: inline-flex; align-items: center; height: 23px; padding: 0 8px;
   border: 1px solid var(--hair); border-radius: 3px;
-  color: var(--ink2); background: #faf7ef; font-size: 12px;
+  color: var(--ink2); background: var(--card-2); font-size: 12px;
 }
 
 /* ── 决策信号五档徽章 ── */
@@ -97,9 +97,9 @@
   letter-spacing: 0.05em;
 }
 .tier-strong-buy  { background: var(--up); color: #fff; }
-.tier-buy         { background: rgba(191, 58, 48, 0.18); color: var(--up); border: 1px solid rgba(191, 58, 48, 0.35); }
-.tier-neutral     { background: rgba(154, 123, 47, 0.14); color: var(--gold); border: 1px solid rgba(154, 123, 47, 0.35); }
-.tier-sell        { background: rgba(30, 138, 94, 0.14); color: var(--down); border: 1px solid rgba(30, 138, 94, 0.35); }
+.tier-buy         { background: rgba(var(--up-rgb), 0.18); color: var(--up); border: 1px solid rgba(var(--up-rgb), 0.35); }
+.tier-neutral     { background: rgba(var(--violet-rgb), 0.14); color: var(--violet); border: 1px solid rgba(var(--violet-rgb), 0.35); }
+.tier-sell        { background: rgba(var(--down-rgb), 0.14); color: var(--down); border: 1px solid rgba(var(--down-rgb), 0.35); }
 .tier-strong-sell { background: var(--down); color: #fff; }
 .tier-no-signal   { background: rgba(107, 111, 120, 0.14); color: var(--ink2); border: 1px solid var(--hair); }
 
