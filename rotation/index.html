@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>轮动监控 · A股分析终端</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/tokens.css">
+  <link rel="stylesheet" href="/shared/ui.css">
+  <link rel="stylesheet" href="/rotation/styles.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/sector">
+      <span class="brand-mark">轮</span>
+      <span class="brand-text">
+        <strong>A股分析终端</strong>
+        <small>ROTATION MONITOR · 轮动监控</small>
+      </span>
+    </a>
+    <nav class="module-tabs" aria-label="功能模块">
+      <a href="/sector">板块扫描</a>
+      <a href="/decision">决策看板</a>
+      <a href="/review">大盘复盘</a>
+      <a class="active" href="/rotation">轮动监控</a>
+      <a href="/help">帮助</a>
+    </nav>
+    <div class="top-actions">
+      <span class="demo-badge" id="srcBadge" title="数据源与缓存状态">数据加载中</span>
+      <label class="date-field">
+        <span>日期</span>
+        <input type="date" id="dateInput">
+      </label>
+      <button class="btn primary" id="loadBtn">按日期拉取</button>
+      <button class="btn" id="refreshBtn" title="忽略缓存重新拉取">重新拉取</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <!-- ① 大盘概览与今日轮动主线 -->
+    <section class="sec">
+      <div class="sec-head"><span class="sec-no">①</span><h2>大盘概览与今日轮动主线</h2><span class="sec-hint mono" id="asOf"></span><span class="sec-rule"></span></div>
+      <div class="overview-row">
+        <div class="index-strip" id="indexStrip"></div>
+        <div class="card mainline-card" id="mainline"></div>
+      </div>
+    </section>
+
+    <!-- ② 行业热力网格 + 风格轮动 -->
+    <section class="sec">
+      <div class="grid-2-1">
+        <div>
+          <div class="sec-head"><span class="sec-no">②</span><h2>行业板块涨跌热力</h2><span class="sec-hint">大盘复盘口径 · 完整板块列表</span><span class="sec-rule"></span></div>
+          <div id="heatWrap"><div class="heat-grid"></div></div>
+        </div>
+        <div>
+          <div class="sec-head"><span class="sec-no">③</span><h2>风格轮动强弱</h2><span class="sec-rule"></span></div>
+          <div class="card style-card" id="styleCard"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ④ 主力资金排行：仅在真实资金流可用时展示 -->
+    <section class="sec" id="flowSection" hidden>
+      <div class="sec-head"><span class="sec-no">④</span><h2>主力资金行业净流入排行</h2><span class="sec-hint">单位：亿元 · 流入向右 / 流出向左</span><span class="sec-rule"></span></div>
+      <div class="card flow-card" id="flowRank"></div>
+    </section>
+
+    <!-- ④/⑤ 行业配置研判 -->
+    <section class="sec">
+      <div class="sec-head"><span class="sec-no" id="judgeNo">④</span><h2>行业配置研判</h2><span class="sec-hint">由当日数据规则推演 · 三条</span><span class="sec-rule"></span></div>
+      <div class="judge-grid" id="judgeGrid"></div>
+    </section>
+
+    <footer class="foot">
+      数据来源：WeStock Data（腾讯自选股）优先、AKShare 兜底，收盘口径；结果按日期缓存，"重新拉取"可覆盖缓存。
+      涨跌配色遵循 A 股惯例（涨红跌绿）；行业热力与大盘复盘使用同一板块口径。风格轮动与研判由规则计算生成，仅供复盘研究，不构成投资建议。
+    </footer>
+  </main>
+
+  <script src="/rotation/js/app.js"></script>
+</body>
+</html>

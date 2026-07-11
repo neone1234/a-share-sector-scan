@@ -1,0 +1,84 @@
+/* ============================================================
+   A股分析终端 · 共享设计令牌（唯一来源）
+   五个页面（板块扫描 / 决策 / 复盘 / 轮动 / 帮助）统一引入。
+   当前为浅色纸面终端主题；全部主题差异集中在本文件——
+   页面样式只允许使用下列语义令牌，不得出现主题相关字面值。
+   ============================================================ */
+:root {
+  /* 基础色板 · 纸面浅色 */
+  --paper: #f3f1ea;   /* 页面底 */
+  --card: #fffdf8;    /* 卡片底 */
+  --card-2: #f7f3e7;  /* 次级面板底 */
+  --ink: #20242c;     /* 主文字 */
+  --ink2: #6b6f78;    /* 次文字 */
+  --faint: #b0aa9c;   /* 弱文字 */
+  --hair: #e4dfd2;    /* 分隔线 */
+  --hair-strong: #cfc7b6; /* hover 边框 / 强分隔 */
+  --hover-bg: #f1ede1;    /* 行 / 按钮 / tab 悬停底 */
+  --accent: #a63a32;  /* 品牌红 */
+  --violet: #5b4e96;  /* 强调蓝紫（中性/观察） */
+  --navy: #2c4a73;    /* 强调蓝（链接/参考线） */
+
+  /* 反色文字（深底元素上的文字） */
+  --on-ink: #fdf9f0;
+  --on-accent: #fdf9f0;
+
+  /* 大面积毛玻璃底 */
+  --topbar-bg: rgba(243, 241, 234, 0.94);
+  --overlay: rgba(243, 241, 234, 0.88);
+
+  /* 涨跌语义 · A股 涨红跌绿（全站唯一涨跌色来源） */
+  --up: #bf3a30;
+  --up-deep: #9d2d26;
+  --up-soft: rgba(191, 58, 48, 0.09);
+  --down: #1e8a5e;
+  --down-deep: #146846;
+  --down-soft: rgba(30, 138, 94, 0.09);
+
+  /* RGB 三元组：供页面做 rgba(var(--x-rgb), α) 色调，禁止另写字面值 */
+  --up-rgb: 191, 58, 48;
+  --down-rgb: 30, 138, 94;
+  --violet-rgb: 91, 78, 150;
+  --navy-rgb: 44, 74, 115;
+  --accent-rgb: 166, 58, 50;
+
+  /* 服务/运行状态色（与涨跌语义区分：ok 是运行健康，不是"跌"） */
+  --ok: #2e7d4f;
+  --warn: #b8622c;
+  --err: var(--accent);
+
+  /* 图表辅助色 */
+  --chart-ma5: var(--violet);
+  --chart-ma20: var(--navy);
+  --chart-grid: #ebe6d9;
+
+  /* 热力图色带端点（R,G,B 三元组，供 JS 插值与 CSS rgb(var()) 使用） */
+  --heat-up-weak: 232, 150, 148;
+  --heat-up-strong: 178, 33, 31;
+  --heat-down-weak: 120, 190, 155;
+  --heat-down-strong: 0, 110, 71;
+  --heat-flat: 150, 162, 184;
+
+  /* 字体 */
+  --serif: 'Noto Serif SC', 'Songti SC', serif;
+  --sans: 'Noto Sans SC', 'PingFang SC', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* 间距与圆角（两档圆角：控件 4px / 卡片 6px） */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 22px;
+  --sp-6: 30px;
+  --radius-sm: 4px;
+  --radius: 6px;
+
+  /* 深色浮层（tooltip / toast）：固定墨色，不随主题 */
+  --chrome: #20242c;
+  --chrome-line: rgba(228, 223, 210, 0.18);
+  --chrome-ink: #efece2;
+
+  --shadow-md: 0 12px 32px rgba(32, 36, 44, 0.14);
+  --shadow-lg: 0 18px 48px rgba(32, 36, 44, 0.28);
+}

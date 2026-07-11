@@ -3,22 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>帮助文档 — A股分析终端</title>
+<title>帮助文档 · A股分析终端</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/tokens.css">
 <style>
+  /* 调色板/字体统一来自 /shared/tokens.css；以下仅为本页历史别名 */
   :root {
-    --bg: #f5f0e8;
-    --surface: #faf7f2;
-    --border: #e0d8cc;
-    --hair: #c8bfb0;
-    --ink: #1a1714;
-    --ink2: #6b6255;
-    --ink3: #9b8e80;
-    --up: #bf3a30;
-    --down: #1e8a5e;
-    --gold: #b08840;
-    --blue: #2a5fa5;
-    --mono: 'SF Mono', 'Menlo', 'Consolas', monospace;
-    --sans: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --bg: var(--paper);
+    --surface: var(--card);
+    --border: var(--hair);
+    /* --hair-strong 使用 shared/tokens.css 共享定义 */
+    --ink3: var(--faint);
+    --blue: var(--navy);
     --sidebar-w: 240px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -48,36 +46,41 @@
     margin-bottom: 16px;
   }
   .brand-mark {
-    width: 32px; height: 32px; border-radius: 8px;
-    background: var(--ink); color: #fff;
+    width: 32px; height: 32px; border-radius: 3px;
+    background: var(--accent); color: #fdf9f0;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 16px; flex-shrink: 0;
+    font: 900 16px/1 var(--serif); flex-shrink: 0;
   }
-  .brand-title { font-weight: 700; font-size: 13px; line-height: 1.2; }
+  .brand-title { font-weight: 700; font-size: 13px; line-height: 1.2; font-family: var(--serif); }
   .brand-sub { font-size: 11px; color: var(--ink3); }
+  .module-nav { padding: 4px 16px 12px; display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  .module-nav a {
+    font-size: 11px; font-weight: 700; color: var(--ink2); text-decoration: none;
+    padding: 3px 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface);
+  }
+  .module-nav a:hover { color: var(--ink); border-color: var(--hair-strong); }
 
   /* ── Sidebar nav ── */
   .nav-group { padding: 8px 16px 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink3); text-transform: uppercase; }
   .nav-item { display: block; padding: 6px 20px; font-size: 13px; color: var(--ink2); text-decoration: none; border-left: 2px solid transparent; transition: all 0.12s; }
-  .nav-item:hover { color: var(--ink); background: rgba(0,0,0,0.03); }
-  .nav-item.active, .nav-item:focus { color: var(--ink); border-left-color: var(--ink); background: rgba(0,0,0,0.04); font-weight: 600; }
+  .nav-item:hover { color: var(--ink); background: rgba(255,255,255,0.04); }
+  .nav-item.active, .nav-item:focus { color: var(--ink); border-left-color: var(--ink); background: rgba(255,255,255,0.05); font-weight: 600; }
   .nav-sub { padding-left: 36px; font-size: 12px; color: var(--ink3); }
 
   /* ── Back link ── */
   .back-row { margin-bottom: 28px; }
   .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink3); text-decoration: none; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; transition: all 0.12s; }
-  .back-link:hover { color: var(--ink); border-color: var(--hair); background: var(--surface); }
+  .back-link:hover { color: var(--ink); border-color: var(--hair-strong); background: var(--surface); }
 
   /* ── Content headings ── */
   .section { margin-bottom: 56px; scroll-margin-top: 24px; }
   h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
   h1 small { font-size: 14px; font-weight: 400; color: var(--ink3); margin-left: 10px; letter-spacing: 0; }
   h2 { font-size: 20px; font-weight: 700; margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--border); color: var(--ink); }
-  h2 .module-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-right: 8px; background: var(--ink); color: #fff; vertical-align: middle; }
-  h2 .module-tag.scan { background: #2a5fa5; }
-  h2 .module-tag.chan { background: #7b4fa0; }
-  h2 .module-tag.decision { background: #bf3a30; }
-  h2 .module-tag.review { background: #8a6d0b; }
+  h2 .module-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-right: 8px; background: var(--ink); color: var(--paper); vertical-align: middle; }
+  h2 .module-tag.scan { background: #3a68a8; color: #fff; }
+  h2 .module-tag.decision { background: var(--up-deep); color: #fff; }
+  h2 .module-tag.review { background: #1f7a72; color: #fff; }
   h3 { font-size: 15px; font-weight: 700; margin: 28px 0 10px; color: var(--ink); }
   h4 { font-size: 13px; font-weight: 700; margin: 20px 0 8px; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.04em; }
   p { margin-bottom: 12px; color: var(--ink); }
@@ -85,14 +88,14 @@
   ul, ol { padding-left: 20px; margin-bottom: 12px; }
   li { margin-bottom: 5px; }
   strong { font-weight: 700; }
-  code { font-family: var(--mono); font-size: 12px; background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 3px; }
+  code { font-family: var(--mono); font-size: 12px; background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 3px; }
 
   /* ── Cards and callouts ── */
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 14px 0; }
-  .callout { border-left: 3px solid var(--gold); background: rgba(176,136,64,0.06); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 14px 0; }
-  .callout.warn { border-left-color: var(--up); background: rgba(191,58,48,0.05); }
-  .callout.tip  { border-left-color: var(--down); background: rgba(30,138,94,0.05); }
-  .callout-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; color: var(--gold); }
+  .callout { border-left: 3px solid var(--violet); background: rgba(var(--violet-rgb),0.08); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 14px 0; }
+  .callout.warn { border-left-color: var(--up); background: rgba(var(--up-rgb),0.06); }
+  .callout.tip  { border-left-color: var(--down); background: rgba(var(--down-rgb),0.06); }
+  .callout-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; color: var(--violet); }
   .callout.warn .callout-title { color: var(--up); }
   .callout.tip  .callout-title { color: var(--down); }
 
@@ -101,28 +104,28 @@
   .factor-table th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink3); border-bottom: 2px solid var(--border); padding: 6px 10px; }
   .factor-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
   .factor-table tr:last-child td { border-bottom: none; }
-  .factor-table tr:hover td { background: rgba(0,0,0,0.02); }
+  .factor-table tr:hover td { background: rgba(255,255,255,0.03); }
   .w-label { width: 80px; text-align: center; font-family: var(--mono); font-size: 12px; }
   .tier-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
-  .tier-sb { background: rgba(191,58,48,1); color: #fff; }
-  .tier-b  { background: rgba(191,58,48,0.55); color: #fff; }
-  .tier-n  { background: rgba(176,136,64,0.25); color: #7a5c20; }
-  .tier-s  { background: rgba(30,138,94,0.5); color: #fff; }
-  .tier-ss { background: rgba(30,138,94,1); color: #fff; }
+  .tier-sb { background: var(--up-deep); color: #fff; }
+  .tier-b  { background: rgba(var(--up-rgb),0.55); color: #fff; }
+  .tier-n  { background: rgba(var(--violet-rgb),0.25); color: #3d3468; }
+  .tier-s  { background: rgba(var(--down-rgb),0.5); color: #fff; }
+  .tier-ss { background: var(--down-deep); color: #fff; }
 
   /* ── Score formula ── */
-  .formula { font-family: var(--mono); font-size: 12px; background: rgba(0,0,0,0.04); border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin: 10px 0; line-height: 2; overflow-x: auto; white-space: pre; }
+  .formula { font-family: var(--mono); font-size: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin: 10px 0; line-height: 2; overflow-x: auto; white-space: pre; }
 
   /* ── Step flow ── */
   .steps { counter-reset: step; }
   .step { display: flex; gap: 14px; margin-bottom: 16px; }
-  .step-num { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; margin-top: 1px; }
+  .step-num { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: var(--ink); color: var(--paper); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; margin-top: 1px; }
   .step-body { flex: 1; }
   .step-title { font-weight: 700; margin-bottom: 4px; }
   .step-desc { color: var(--ink2); font-size: 13px; }
 
   /* ── Gate table ── */
-  .gate-code { font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 2px 7px; background: rgba(191,58,48,0.1); color: var(--up); border-radius: 4px; }
+  .gate-code { font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 2px 7px; background: rgba(var(--up-rgb),0.1); color: var(--up); border-radius: 4px; }
 
   /* ── Chanlun diagram ── */
   .chan-concept { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
@@ -133,7 +136,7 @@
   /* ── Module summary cards ── */
   .module-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 20px 0; }
   .module-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; text-decoration: none; color: inherit; transition: all 0.12s; display: block; }
-  .module-card:hover { border-color: var(--hair); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .module-card:hover { border-color: var(--hair-strong); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
   .module-card-icon { font-size: 22px; margin-bottom: 8px; }
   .module-card-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
   .module-card-desc { font-size: 12px; color: var(--ink2); line-height: 1.5; }
@@ -158,10 +161,17 @@
   <div class="topbar">
     <div class="brand-mark">帮</div>
     <div>
-      <div class="brand-title">帮助文档</div>
-      <div class="brand-sub">A股分析终端</div>
+      <div class="brand-title">A股分析终端</div>
+      <div class="brand-sub">HELP · 帮助文档</div>
     </div>
   </div>
+
+  <nav class="module-nav" aria-label="功能模块">
+    <a href="/sector">板块扫描</a>
+    <a href="/decision">决策看板</a>
+    <a href="/review">大盘复盘</a>
+    <a href="/rotation">轮动监控</a>
+  </nav>
 
   <div class="nav-group">概览</div>
   <a class="nav-item" href="#overview">系统介绍</a>
@@ -171,11 +181,6 @@
   <a class="nav-item" href="#scan">板块扫描</a>
   <a class="nav-item nav-sub" href="#scan-design">· 设计逻辑</a>
   <a class="nav-item nav-sub" href="#scan-usage">· 操作说明</a>
-
-  <a class="nav-item" href="#chanlun">缠论分析</a>
-  <a class="nav-item nav-sub" href="#chan-theory">· 缠论基础</a>
-  <a class="nav-item nav-sub" href="#chan-algo">· 识别算法</a>
-  <a class="nav-item nav-sub" href="#chan-usage">· 操作说明</a>
 
   <a class="nav-item" href="#decision">决策看板</a>
   <a class="nav-item nav-sub" href="#decision-factors">· 因子体系</a>
@@ -204,18 +209,13 @@
   <!-- ── 概览 ── -->
   <div class="section" id="overview">
     <h1>A股分析终端<small>使用手册</small></h1>
-    <p>本系统是一套面向个人投资者的 A 股技术分析工具，集成<strong>板块扫描</strong>、<strong>缠论分析</strong>、<strong>决策看板</strong>和<strong>大盘复盘</strong>四个功能模块，数据实时拉取，本地运行，不依赖外部订阅服务。</p>
+    <p>本系统是一套面向个人投资者的 A 股技术分析工具，集成<strong>板块扫描</strong>、<strong>决策看板</strong>、<strong>大盘复盘</strong>和<strong>轮动监控</strong>四个功能模块，数据实时拉取，本地运行，不依赖外部订阅服务。</p>
 
     <div class="module-cards">
       <a class="module-card" href="#scan">
         <div class="module-card-icon">📊</div>
         <div class="module-card-name">板块扫描</div>
         <div class="module-card-desc">实时扫描全行业板块，多指标技术排名，快速定位强势方向。</div>
-      </a>
-      <a class="module-card" href="#chanlun">
-        <div class="module-card-icon">📈</div>
-        <div class="module-card-name">缠论分析</div>
-        <div class="module-card-desc">自动识别笔、线段、中枢、背驰，可视化缠论结构。</div>
       </a>
       <a class="module-card" href="#decision">
         <div class="module-card-icon">🎯</div>
@@ -227,11 +227,16 @@
         <div class="module-card-name">大盘复盘</div>
         <div class="module-card-desc">按日期汇总指数、市场宽度、板块与资讯，由 LLM 生成结构化报告。</div>
       </a>
+      <a class="module-card" href="/rotation">
+        <div class="module-card-icon">🔁</div>
+        <div class="module-card-name">轮动监控</div>
+        <div class="module-card-desc">行业热力、主力资金排行、风格轮动天平与配置研判一屏总览。</div>
+      </a>
     </div>
 
     <div class="callout">
       <div class="callout-title">推荐使用流程</div>
-      先用<strong>大盘复盘</strong>判断市场温度与交易环境 → 用<strong>决策看板</strong>确定强势板块方向 → 用<strong>板块扫描</strong>观察板块 K 线与技术形态 → 用<strong>缠论分析</strong>对目标个股做精细化结构判断，最终结合价位模型执行操作。
+      先用<strong>大盘复盘</strong>判断市场温度与交易环境 → 用<strong>轮动监控</strong>确认行业与资金主线 → 用<strong>决策看板</strong>确定强势板块方向 → 用<strong>板块扫描</strong>观察板块 K 线与技术形态，最终结合价位模型执行操作。
     </div>
   </div>
 
@@ -252,7 +257,6 @@
     <p>启动 <code>python3 server.py</code> 后，浏览器访问：</p>
     <div class="card" style="font-family:var(--mono);font-size:13px;line-height:2.2">
       <span style="color:var(--ink3)">板块扫描  </span> http://127.0.0.1:8765/sector<br>
-      <span style="color:var(--ink3)">缠论分析  </span> http://127.0.0.1:8765/chanlun<br>
       <span style="color:var(--ink3)">决策看板  </span> http://127.0.0.1:8765/decision<br>
       <span style="color:var(--ink3)">大盘复盘  </span> http://127.0.0.1:8765/review<br>
       <span style="color:var(--ink3)">帮助文档  </span> http://127.0.0.1:8765/help
@@ -284,7 +288,6 @@
       <table class="factor-table">
         <thead><tr><th>预设名称</th><th>适用场景</th><th>核心逻辑</th></tr></thead>
         <tbody>
-          <tr><td>缠论索引</td><td>配合缠论模块使用</td><td>重点识别背驰与中枢突破形态</td></tr>
           <tr><td>强势突破</td><td>趋势行情</td><td>均线多头 + 放量突破，追强</td></tr>
           <tr><td>超跌反弹</td><td>震荡底部</td><td>超跌 RSI + 支撑区间，博反弹</td></tr>
           <tr><td>资金轮动</td><td>板块轮动</td><td>结合决策看板的资金流信号</td></tr>
@@ -326,8 +329,8 @@
         <div class="step">
           <div class="step-num">5</div>
           <div class="step-body">
-            <div class="step-title">跳转缠论或决策分析</div>
-            <div class="step-desc">在板块页面顶部导航栏可直接切换到<strong>缠论分析</strong>查看该板块的缠论结构，或打开<strong>决策看板</strong>查看量化评分。</div>
+            <div class="step-title">跳转决策分析</div>
+            <div class="step-desc">在板块页面顶部导航栏可直接切换到<strong>决策看板</strong>查看该板块的量化评分。</div>
           </div>
         </div>
       </div>
@@ -341,159 +344,9 @@
 
   <hr class="divider">
 
-  <!-- ══════════════ 缠论分析 ══════════════ -->
-  <div class="section" id="chanlun">
-    <h2><span class="module-tag chan">模块二</span>缠论分析</h2>
-
-    <div id="chan-theory">
-      <h3>缠论基础概念</h3>
-      <p>缠论（缠中说禅理论）是一套完整的价格行为分析体系，核心在于用严格的数学语言定义市场结构，而非主观判断。本模块自动化执行缠论的核心识别流程。</p>
-
-      <div class="chan-concept">
-        <div class="chan-box">
-          <div class="chan-box-title">分型 (Pattern)</div>
-          <p>连续三根 K 线构成的局部极值。<strong>顶分型</strong>：中间 K 线的高点高于两侧；<strong>底分型</strong>：中间 K 线的低点低于两侧。K 线需经过包含关系处理后再判断。</p>
-        </div>
-        <div class="chan-box">
-          <div class="chan-box-title">包含关系</div>
-          <p>当相邻两根 K 线存在包含关系（一根完全被另一根覆盖）时，需合并处理。上升趋势取高高，下降趋势取低低，直到消除包含关系为止。</p>
-        </div>
-        <div class="chan-box">
-          <div class="chan-box-title">笔 (Stroke)</div>
-          <p>由相邻一顶一底分型连接而成的价格波动单元，是缠论分析的最小基本结构。笔内部至少要有 5 根独立 K 线（含端点分型 K 线）。</p>
-        </div>
-        <div class="chan-box">
-          <div class="chan-box-title">线段 (Segment)</div>
-          <p>由至少三笔构成。线段内部需包含一个被两侧笔完全覆盖的价格区间，即特征序列分型。线段是中枢分析的基础单元。</p>
-        </div>
-        <div class="chan-box">
-          <div class="chan-box-title">中枢 (Pivot Zone)</div>
-          <p>至少三笔（相邻三段）重叠的价格区间，形成横向震荡区。中枢的高低点（ZH / ZL）界定了多空分界线，是判断趋势延续与反转的关键。</p>
-        </div>
-        <div class="chan-box">
-          <div class="chan-box-title">背驰 (Divergence)</div>
-          <p>新高（或新低）时，推动力度不如前一次同向波动。缠论用 MACD 辅助量化：若价格创新高但 MACD 柱面积缩小，为顶背驰，反之为底背驰。</p>
-        </div>
-      </div>
-
-      <div class="callout">
-        <div class="callout-title">理论优先级</div>
-        缠论的结论取决于<strong>使用的时间级别</strong>。日线背驰只说明日线级别调整，分钟线背驰只说明分钟级别修正。系统默认以日线为主力分析级别，周线验证大方向，分钟线不在系统覆盖范围内。
-      </div>
-    </div>
-
-    <div id="chan-algo">
-      <h3>系统识别算法</h3>
-      <p>系统按以下顺序处理原始 K 线数据，每一步的输出作为下一步的输入：</p>
-
-      <div class="steps">
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-body">
-            <div class="step-title">K 线预处理 — 消除包含关系</div>
-            <div class="step-desc">遍历所有 K 线，将具有包含关系的相邻 K 线按趋势方向合并，输出"独立 K 线序列"。</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-body">
-            <div class="step-title">分型识别</div>
-            <div class="step-desc">在独立 K 线序列上扫描连续三根，识别所有顶/底分型。相邻顶底分型之间必须至少有一根不构成分型的 K 线（防止假分型）。</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">3</div>
-          <div class="step-body">
-            <div class="step-title">笔的确认</div>
-            <div class="step-desc">相邻一顶一底分型之间满足<strong>至少 5 根独立 K 线</strong>的条件，则确认为一笔。不满足则合并或舍弃该分型。</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">4</div>
-          <div class="step-body">
-            <div class="step-title">线段划分</div>
-            <div class="step-desc">在笔的序列上识别特征序列分型，确认线段端点。当前最后一根线段可能是未完成状态（虚线展示）。</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">5</div>
-          <div class="step-body">
-            <div class="step-title">中枢计算</div>
-            <div class="step-desc">取连续三笔的价格重叠区间，连续延伸重叠区间直到出现趋势突破，输出每个中枢的上沿（ZH）和下沿（ZL）。</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">6</div>
-          <div class="step-body">
-            <div class="step-title">背驰判断</div>
-            <div class="step-desc">对离开中枢的最后两笔（或两段）计算 MACD 柱面积比较。若最新一笔的面积 <strong>小于</strong> 前一笔同向运动的面积，标记为背驰信号。</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="callout warn">
-        <div class="callout-title">注意</div>
-        背驰信号是"力度衰减"的提示，不是"立刻反转"的保证。实际行情中，背驰后可能再次创新高（盘整背驰），也可能直接转折。系统只负责客观识别，操作决策仍需结合其他条件。
-      </div>
-    </div>
-
-    <div id="chan-usage">
-      <h3>操作说明</h3>
-      <div class="steps">
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-body">
-            <div class="step-title">输入标的代码</div>
-            <div class="step-desc">在搜索框输入股票代码或名称，支持个股（如 <code>600036</code> 招商银行）、ETF（如 <code>512880</code> 证券ETF）、指数。</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-body">
-            <div class="step-title">选择分析周期</div>
-            <div class="step-desc">日线（默认）用于中期趋势判断；周线用于验证大方向。K 线根数默认 200 根，可按需调整。</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">3</div>
-          <div class="step-body">
-            <div class="step-title">阅读图表结构</div>
-            <div class="step-desc">
-              <strong>蓝色连线</strong>：笔（方向连线）<br>
-              <strong>橙色色块</strong>：中枢区间（ZH / ZL 标注）<br>
-              <strong>红色▲ / 绿色▼</strong>：顶底分型标记<br>
-              <strong>闪光⚡标记</strong>：背驰信号位置
-            </div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">4</div>
-          <div class="step-body">
-            <div class="step-title">查看 MACD 辅助验证</div>
-            <div class="step-desc">图表下方的 MACD 副图与主图背驰标记联动显示。判断背驰时对比标记位置前后两段 MACD 柱的面积大小。</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">5</div>
-          <div class="step-body">
-            <div class="step-title">解读文字分析</div>
-            <div class="step-desc">图表下方的文字区块给出当前结构描述，包含：最近中枢位置、当前笔的方向、是否存在背驰信号，以及操作参考（仅供参考）。</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="callout tip">
-        <div class="callout-title">实战建议</div>
-        优先关注<strong>底背驰 + 中枢上沿突破</strong>的组合形态，这是缠论中确定性较高的买点结构。底背驰出现后，若价格能有效突破最近中枢 ZH，则多头结构确立，可考虑分批建仓。
-      </div>
-    </div>
-  </div>
-
-  <hr class="divider">
-
   <!-- ══════════════ 决策看板 ══════════════ -->
   <div class="section" id="decision">
-    <h2><span class="module-tag decision">模块三</span>决策看板</h2>
+    <h2><span class="module-tag decision">模块二</span>决策看板</h2>
 
     <p>决策看板是系统的核心量化模块，用多因子模型对全市场板块进行横截面评分和排名，辅助判断哪些方向具备进场条件，并提供基于 ATR 的价位参考。</p>
 
@@ -513,7 +366,7 @@
             <td>MA 排列 (trend_ma_align)</td><td>均线是否呈现多头排列（MA5 > MA10 > MA20 > MA60）</td>
           </tr>
           <tr>
-            <td>MACD 柱 (trend_macd)</td><td>MACD 柱体值的方向与大小，正值代表多头动量</td>
+            <td>MACD 柱 (trend_macd_hist_pct)</td><td>MACD 柱 ÷ 收盘价 × 100（按价格水平归一为 %，ETF 与指数在截面上可比）</td>
           </tr>
           <tr>
             <td>ADX 方向 (trend_adx)</td><td>ADX(14) 趋势强度，+DI > -DI 时为多头趋势</td>
@@ -524,33 +377,33 @@
             <td>20日收益率 (mom_return_20)</td><td>近 20 个交易日的价格涨幅，横截面排名</td>
           </tr>
           <tr>
-            <td>超额收益 RS20 (mom_rs20)</td><td>20日收益率 − 同期沪深300收益率，衡量相对强度</td>
+            <td>60日收益率 (mom_return_60)</td><td>近 60 个交易日涨幅，衡量中期动量延续（RS20 超额收益仅作展示——截面标准化后与 20 日收益完全同质，不重复计权）</td>
           </tr>
           <tr>
             <td rowspan="2"><strong>资金</strong></td>
             <td rowspan="2" class="w-label" style="color:var(--blue)">25%</td>
-            <td>1日主力净流入 (flow_main_net)</td><td>当日主力资金净流入额（大单买卖之差）</td>
+            <td>1日主力净占比 (flow_intensity_1d)</td><td>主力净流入 ÷ 板块成交额 ×100%，按板块规模归一后跨板块可比；净流入额（亿元）仅作展示</td>
           </tr>
           <tr>
-            <td>5日主力净流入 (flow_main_net_5d)</td><td>过去 5 个交易日累计主力净流入，反映持续资金偏好</td>
+            <td>5日主力净占比 (flow_intensity_5d)</td><td>过去 5 个交易日净占比均值，反映持续资金偏好</td>
           </tr>
           <tr>
             <td rowspan="3"><strong>广度</strong></td>
             <td rowspan="3" class="w-label" style="color:var(--blue)">20%</td>
-            <td>涨跌家数比 (breadth_adv_decline)</td><td>板块内上涨股票数 ÷ 板块总股票数</td>
+            <td>涨跌家数比 (breadth_adv_decline)</td><td>板块内（上涨数 − 下跌数）÷ 总数。轮动视图不拉取成分股，无真实数据时该组<strong>不参与评分</strong>（权重重分配），不以 0 分占位</td>
           </tr>
           <tr>
-            <td>站上MA20占比 (breadth_pct_above_ma20)</td><td>板块内收盘价 > MA20 的股票比例，衡量趋势参与度</td>
+            <td>站上MA20占比 (breadth_pct_above_ma20)</td><td>板块内收盘价 > MA20 的股票比例，衡量趋势参与度（明细页展示）</td>
           </tr>
           <tr>
-            <td>站上MA60占比 (breadth_pct_above_ma60)</td><td>板块内收盘价 > MA60 的股票比例，衡量中期健康度</td>
+            <td>站上MA60占比 (breadth_pct_above_ma60)</td><td>板块内收盘价 > MA60 的股票比例，衡量中期健康度（明细页展示）</td>
           </tr>
         </tbody>
       </table>
 
       <div class="callout">
-        <div class="callout-title">拥挤度修正（不计入基础权重）</div>
-        换手率因子 (crowd_turnover) 作为修正项：极高换手率（>3σ）会适度下调综合得分，防止追高过热板块；极低换手率(<−2σ) 则小幅下调，因流动性不足。
+        <div class="callout-title">拥挤度（风险因子，不进综合分）</div>
+        换手率因子 (crowd_turnover) 定义为风险警示项：换手截面显著偏高（标准化后 > 0.8，约 +1.6σ）且动量强（> 0.5）时，触发 <code>RISK3:交易拥挤</code> 警示并折减置信度 0.10，提示追高风险。
       </div>
     </div>
 
@@ -564,14 +417,16 @@
       <p>这样每个因子的值域归一化到 [−1, +1]，消除量纲差异，使不同因子可以直接加权合并。截断点 ±1 防止极端值主导结果。</p>
 
       <h4>第二步：组内加权</h4>
-      <div class="formula">trend     = MA排列×0.35 + MACD×0.35 + ADX×0.30
-momentum  = 20日收益率×0.45 + RS20×0.55
-flow      = 1日净流入×0.55 + 5日净流入×0.45
-breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
+      <div class="formula">trend     = MA排列×0.35 + MACD(%价)×0.35 + ADX×0.30
+momentum  = 20日收益率×0.60 + 60日收益率×0.40
+flow      = 1日净占比×0.55 + 5日净占比×0.45
+breadth   = 涨跌家数比（有真实成分股数据时）</div>
+      <p>组内任一因子缺失时，其权重按比例重分配给同组可用因子，不以 0 分占位。</p>
 
       <h4>第三步：综合评分</h4>
-      <div class="formula">composite = trend×0.30 + momentum×0.25 + flow×0.25 + breadth×0.20</div>
-      <p>综合得分范围 [−1, +1]，0 为横截面中位水平，正值代表相对强势，负值代表相对弱势。</p>
+      <div class="formula">composite = trend×0.30 + momentum×0.25 + flow×0.25 + breadth×0.20
+（缺失的组同样做权重重分配，例如无广度时 ≈ trend×0.375 + momentum×0.3125 + flow×0.3125）</div>
+      <p>综合得分范围 [−1, +1]，0 为横截面中位水平，正值代表相对强势，负值代表相对弱势。评级档位<strong>只由综合分决定</strong>。</p>
 
       <h4>第四步：评级映射</h4>
       <table class="factor-table">
@@ -586,12 +441,13 @@ breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
       </table>
 
       <h4>置信度</h4>
-      <p>置信度反映当前评级的数据质量，取值 [0, 1]，由以下条件累加：</p>
+      <p>置信度 = <strong>数据完备度</strong>，取值 [0.20, 1]，由以下条件累加，再按警示门控折减：</p>
       <ul>
-        <li>基础：0.50（只要有 K 线数据就有）</li>
+        <li>基础：0.40（只要有 K 线数据就有）</li>
         <li>ADX 可计算：+0.15</li>
-        <li>有真实资金流数据（非估算）：+0.20</li>
-        <li>广度数据已计算（非轮动板估算）：+0.15</li>
+        <li>有真实资金净占比数据：+0.25</li>
+        <li>有真实广度数据：+0.20</li>
+        <li>SG4/SG5 背离警示：每项 −0.15；RISK3 拥挤警示：−0.10（下限 0.20）</li>
       </ul>
       <p>置信度低于 0.6 时，建议谨慎对待评级结果。</p>
     </div>
@@ -616,17 +472,22 @@ breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
           </tr>
           <tr>
             <td><span class="gate-code">SG4</span></td>
-            <td>广度与趋势背离：趋势看多但广度因子为负（多数股票处于均线下方）</td>
-            <td>评级下调一档（如"强烈看多"→"看多"）</td>
+            <td>广度与动量背离：动量强但广度显著为负（多数股票并未跟涨）</td>
+            <td>警示标签 + 置信度 −0.15（<strong>不再降级评级</strong>——背离已通过因子权重反映在综合分中，避免双重惩罚）</td>
           </tr>
           <tr>
             <td><span class="gate-code">SG5</span></td>
-            <td>资金与动量背离：动量强但主力资金显著净流出（≤ −1σ）</td>
-            <td>评级下调一档</td>
+            <td>资金与动量背离：动量强但主力资金显著净流出</td>
+            <td>警示标签 + 置信度 −0.15</td>
+          </tr>
+          <tr>
+            <td><span class="gate-code">RISK3</span></td>
+            <td>交易拥挤：换手截面显著偏高叠加强动量</td>
+            <td>警示标签 + 置信度 −0.10</td>
           </tr>
         </tbody>
       </table>
-      <p>被触发的门控会在板块行和详情页中以标签形式显示，展示格式如 <code>SG4:广度背离</code>。</p>
+      <p>被触发的门控会在板块行和详情页中以标签形式显示，展示格式如 <code>SG4:广度背离</code>。硬门控（SG1/SG2）屏蔽评级；警示门控只影响置信度，评级档位始终与综合分一致。</p>
     </div>
 
     <!-- 价位模型 -->
@@ -634,17 +495,17 @@ breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
       <h3>ATR 价位模型</h3>
       <p>基于 14 日平均真实波幅（ATR14）动态估算进场区间、止损位和目标价位：</p>
 
-      <div class="formula">ATR14     = Wilder 平滑的14日真实波幅均值
+      <div class="formula">ATR14     = 14日真实波幅均值
 进场区低  = 最新收盘 − 0.3 × ATR14
 进场区高  = 最新收盘 + 0.3 × ATR14
-止损位    = 最新收盘 − 1.5 × ATR14   （约1.5倍日波动）
-目标价1   = 最新收盘 + 2.0 × ATR14   （盈亏比约 1:1.3）
-目标价2   = 最新收盘 + 3.5 × ATR14   （延伸目标）
-盈亏比    = (目标价1 − 收盘) / (收盘 − 止损)</div>
+止损位    = 最新收盘 − 1.5 × ATR14   （同时给出相对幅度 %）
+目标价1   = 最新收盘 + 2.0 × ATR14   （同时给出相对幅度 %）
+目标价2   = 最新收盘 + 3.5 × ATR14   （延伸目标）</div>
+      <p>价位一律以<strong>可交易的首选 ETF 行情</strong>为基准并在卡片上标注标的代码（指数点位不可交易）；无 ETF 映射的板块不提供价位区间。ATR 倍数固定时盈亏比是常数，因此改为报告止损/目标的相对幅度。</p>
 
       <div class="callout warn">
         <div class="callout-title">重要说明</div>
-        ATR 价位是基于统计波动率的<strong>参考区间</strong>，不是具体的买卖指令。实际操作应结合：(1) 缠论笔端点精确止损；(2) 关键支撑位（均线、历史高低点）；(3) 个人仓位管理原则。
+        ATR 价位是基于统计波动率的<strong>参考区间</strong>，不是具体的买卖指令。实际操作应结合：(1) 关键支撑位（均线、历史高低点）精确止损；(2) 成交量与价格形态确认；(3) 个人仓位管理原则。
       </div>
     </div>
 
@@ -739,7 +600,6 @@ breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
           <li><strong>周维度</strong>：每周末查看轮动排行，确定当前市场最强方向（前3名板块）。</li>
           <li><strong>日维度</strong>：开盘前检查排行是否有新变化，日内不必频繁刷新。</li>
           <li><strong>操作前</strong>：在板块详情核实多因子共振（趋势+动量同向）且无 SG1/SG2 门控，置信度 ≥ 70%，再行决策。</li>
-          <li><strong>配合缠论</strong>：用决策看板定方向，用缠论确认精确买点（底背驰 + 中枢突破），两者结合可显著提升信号质量。</li>
         </ul>
       </div>
     </div>
@@ -749,7 +609,7 @@ breadth   = 涨跌比×0.40 + MA20占比×0.35 + MA60占比×0.25</div>
 
   <!-- ══════════════ 大盘复盘 ══════════════ -->
   <div class="section" id="review">
-    <h2><span class="module-tag review">模块四</span>大盘复盘</h2>
+    <h2><span class="module-tag review">模块三</span>大盘复盘</h2>
 
     <p>大盘复盘把所选日期的<strong>主要宽基指数、市场宽度、行业强弱、财经资讯</strong>汇总到一页，并调用配置的 LLM 生成结构化盘后报告。它适合回答三个问题：当日市场环境偏进攻还是偏防守、强弱主线在哪里、下一交易日优先观察什么。</p>
 

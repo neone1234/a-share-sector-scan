@@ -1,0 +1,116 @@
+/* ============================================================
+   A股分析终端 · 共享组件样式
+   统一头部 / 品牌 / 模块导航 / 按钮 / 卡片 / 徽章 / 涨跌工具类。
+   依赖 shared/tokens.css，须在其后引入、在页面 styles.css 之前引入。
+   ============================================================ */
+
+/* ── 顶栏（全宽 sticky） ── */
+.top {
+  display: flex; align-items: center; gap: 18px; padding: 16px 36px;
+  border-bottom: 1px solid var(--hair); position: sticky; top: 0; z-index: 40;
+  background: var(--topbar-bg); backdrop-filter: blur(18px);
+  flex-wrap: wrap;
+}
+
+/* ── 品牌：红底 serif 单字方块 + "A股分析终端" + 模块副标 ── */
+.brand { display: flex; align-items: center; gap: 11px; text-decoration: none; color: inherit; flex-shrink: 0; }
+.brand-mark {
+  width: 38px; height: 38px; display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent); border-radius: 3px;
+  font: 900 20px/1 var(--serif);
+}
+.brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+.brand-text strong { font: 700 17px/1.25 var(--serif); letter-spacing: 0.06em; color: var(--ink); }
+.brand-text small { font-size: 10px; color: var(--ink2); letter-spacing: 0.14em; text-transform: uppercase; }
+
+/* ── 模块导航 ── */
+.module-tabs {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px;
+  border: 1px solid var(--hair); border-radius: var(--radius-sm);
+  background: var(--card); flex-shrink: 0;
+}
+.module-tabs a {
+  text-decoration: none; color: var(--ink2);
+  font-size: 12px; font-weight: 700; padding: 5px 11px;
+  border-radius: 3px; white-space: nowrap; letter-spacing: 0;
+}
+.module-tabs a:hover:not(.active) { background: var(--hover-bg); color: var(--ink); }
+.module-tabs a.active { color: var(--on-ink); background: var(--ink); }
+
+.top-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
+
+/* ── 日期控件 ── */
+.date-field, .date-control {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--ink2); white-space: nowrap;
+}
+.date-field input, .date-control input {
+  width: 132px; height: 31px; border: 1px solid var(--hair);
+  background: var(--card); border-radius: 3px; padding: 0 8px;
+  color: var(--ink); font: inherit; outline: none;
+}
+.date-field input:focus, .date-control input:focus { border-color: var(--accent); }
+
+/* ── 按钮（.btn 与历史类名 .mini-btn / .action-btn 同一视觉） ── */
+.btn, .mini-btn, .action-btn {
+  height: 31px; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--hair); background: var(--card); color: var(--ink);
+  border-radius: 3px; font-family: var(--sans); font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; text-decoration: none; transition: all 0.15s ease;
+}
+.btn:hover, .mini-btn:hover, .action-btn:hover { background: var(--hover-bg); border-color: var(--hair-strong); }
+.btn:disabled, .mini-btn:disabled { opacity: 0.5; cursor: wait; }
+.btn-primary, .btn.primary, .mini-btn.primary, .action-btn.primary {
+  background: var(--ink); border-color: var(--ink); color: var(--on-ink);
+}
+.btn-primary:hover, .btn.primary:hover, .mini-btn.primary:hover { background: #363a44; filter: none; }
+.btn .spin {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: var(--on-ink);
+  display: none; animation: ui-spin 0.7s linear infinite;
+}
+.btn.loading { pointer-events: none; opacity: 0.92; }
+.btn.loading .spin { display: inline-block; }
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+
+/* ── 卡片与卡片标题 ── */
+.card {
+  background: var(--card); border: 1px solid var(--hair);
+  border-radius: var(--radius); padding: 18px 20px;
+}
+.card-title {
+  font: 700 11px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink2); margin-bottom: 12px;
+}
+
+/* ── pill ── */
+.pill {
+  display: inline-flex; align-items: center; height: 23px; padding: 0 8px;
+  border: 1px solid var(--hair); border-radius: 3px;
+  color: var(--ink2); background: var(--card-2); font-size: 12px;
+}
+
+/* ── 决策信号五档徽章 ── */
+.tier {
+  display: inline-block; font: 700 11px/1 var(--mono);
+  padding: 3px 8px; border-radius: 3px; white-space: nowrap;
+  letter-spacing: 0.05em;
+}
+.tier-strong-buy  { background: var(--up); color: #fff; }
+.tier-buy         { background: rgba(var(--up-rgb), 0.18); color: var(--up); border: 1px solid rgba(var(--up-rgb), 0.35); }
+.tier-neutral     { background: rgba(var(--violet-rgb), 0.14); color: var(--violet); border: 1px solid rgba(var(--violet-rgb), 0.35); }
+.tier-sell        { background: rgba(var(--down-rgb), 0.14); color: var(--down); border: 1px solid rgba(var(--down-rgb), 0.35); }
+.tier-strong-sell { background: var(--down); color: #fff; }
+.tier-no-signal   { background: rgba(107, 111, 120, 0.14); color: var(--ink2); border: 1px solid var(--hair); }
+
+/* ── 涨跌工具类（判定规则：>0 涨 / <0 跌 / 其余持平） ── */
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--ink2); }
+
+/* ── 数字统一 mono + 等宽数字 ── */
+.num, .mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}

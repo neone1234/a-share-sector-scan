@@ -3,27 +3,32 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>A股板块分析终端 · Sector Analysis Terminal</title>
+<title>板块扫描 · A股分析终端</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/shared/tokens.css">
+<link rel="stylesheet" href="/shared/ui.css">
 <link rel="stylesheet" href="terminal.css">
 </head>
 <body>
 
 <!-- ══════════════ HEADER ══════════════ -->
 <header class="header">
-  <div class="header-title">
-    <span class="terminal-tag">板</span>
-    <h1><strong>板块扫描</strong><small>SECTOR SCAN DECISION DESK</small></h1>
-  </div>
+  <a class="brand" href="/sector">
+    <span class="brand-mark">板</span>
+    <span class="brand-text">
+      <strong>A股分析终端</strong>
+      <small>SECTOR SCAN · 板块扫描</small>
+    </span>
+  </a>
   <div class="header-right">
     <nav class="module-tabs" aria-label="功能模块">
       <a class="active" href="/sector">板块扫描</a>
-      <a href="/chanlun">缠论分析</a>
       <a href="/decision">决策看板</a>
       <a href="/review">大盘复盘</a>
+      <a href="/rotation">轮动监控</a>
       <a href="/help">帮助</a>
     </nav>
     <label class="date-control" title="选择板块扫描日期">
@@ -55,16 +60,17 @@
       </div>
       <div class="panel-body">
         <div class="heatmap-grid" id="heatmap"></div>
+        <!-- 图例色与热力格共用 shared/tokens.css 的 --heat-* 端点 -->
         <div class="heat-legend">
           <span class="lab">弱涨</span>
           <div class="legend-scale">
-            <i style="background:rgb(232,150,148)"></i><i style="background:rgb(205,90,90)"></i><i style="background:rgb(178,33,31)"></i>
+            <i style="background:rgb(var(--heat-up-weak))"></i><i style="background:color-mix(in srgb, rgb(var(--heat-up-weak)), rgb(var(--heat-up-strong)) 50%)"></i><i style="background:rgb(var(--heat-up-strong))"></i>
           </div>
           <span class="lab">强涨</span>
           <span style="flex:1"></span>
           <span class="lab">弱跌</span>
           <div class="legend-scale">
-            <i style="background:rgb(120,190,155)"></i><i style="background:rgb(60,150,113)"></i><i style="background:rgb(0,110,71)"></i>
+            <i style="background:rgb(var(--heat-down-weak))"></i><i style="background:color-mix(in srgb, rgb(var(--heat-down-weak)), rgb(var(--heat-down-strong)) 50%)"></i><i style="background:rgb(var(--heat-down-strong))"></i>
           </div>
           <span class="lab">强跌</span>
         </div>
@@ -131,7 +137,7 @@
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">20-DAY TREND <span class="cn">领涨板块走势</span></span>
-        <span class="panel-sub">归一化 · 5/11=100</span>
+        <span class="panel-sub" id="trendBaseNote">归一化</span>
       </div>
       <div class="panel-body">
         <div class="chart-wrap" style="height:210px"><canvas id="trendChart"></canvas></div>

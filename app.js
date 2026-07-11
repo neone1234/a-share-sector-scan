@@ -11,9 +11,10 @@
 
   /* ---------- helpers ---------- */
   const fmtPct = (v) => (v == null || isNaN(v)) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
-  const fmtPrice = (v) => (v == null || isNaN(v)) ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const cls = (v) => (v == null || isNaN(v)) ? 'flat' : (v > 0.05 ? 'up' : v < -0.05 ? 'down' : 'flat');
-  const arrow = (v) => (v > 0.05 ? '▲' : v < -0.05 ? '▼' : '◆');
+  const fmtPrice = (v) => (v == null || isNaN(v)) ? '—' : v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // 涨跌判定全站统一：>0 涨 / <0 跌 / 其余持平
+  const cls = (v) => (v == null || isNaN(v)) ? 'flat' : (v > 0 ? 'up' : v < 0 ? 'down' : 'flat');
+  const arrow = (v) => (v > 0 ? '▲' : v < 0 ? '▼' : '◆');
   const lerp = (a, b, t) => a + (b - a) * t;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -27,14 +28,26 @@
   /* ============================================================
      HEATMAP
      ============================================================ */
+  // 色带端点统一定义在 shared/tokens.css（--heat-*），JS 只做插值
+  function heatTriplet(name, fallback) {
+    const raw = cssVar(name) || fallback;
+    const parts = raw.split(',').map(s => parseInt(s.trim(), 10));
+    return parts.length === 3 && parts.every(Number.isFinite)
+      ? parts : fallback.split(',').map(Number);
+  }
+  const HEAT = {
+    upWeak: heatTriplet('--heat-up-weak', '74,32,30'),
+    upStrong: heatTriplet('--heat-up-strong', '199,62,54'),
+    downWeak: heatTriplet('--heat-down-weak', '26,66,50'),
+    downStrong: heatTriplet('--heat-down-strong', '46,168,112'),
+    flat: heatTriplet('--heat-flat', '66,74,86'),
+  };
   function heatColor(v, maxAbs) {
     const t = clamp(Math.abs(v) / (maxAbs || 1), 0.12, 1);
-    if (v > 0.05) { // 涨=红
-      return `rgb(${Math.round(lerp(232,178,t))},${Math.round(lerp(150,33,t))},${Math.round(lerp(148,31,t))})`;
-    } else if (v < -0.05) { // 跌=绿
-      return `rgb(${Math.round(lerp(120,0,t))},${Math.round(lerp(190,110,t))},${Math.round(lerp(155,71,t))})`;
-    }
-    return 'rgb(150,162,184)';
+    const mix = (a, b) => `rgb(${a.map((av, i) => Math.round(lerp(av, b[i], t))).join(',')})`;
+    if (v > 0.05) return mix(HEAT.upWeak, HEAT.upStrong);        // 涨=红
+    if (v < -0.05) return mix(HEAT.downWeak, HEAT.downStrong);   // 跌=绿
+    return `rgb(${HEAT.flat.join(',')})`;
   }
   function renderHeatmap() {
     const grid = $('#heatmap');
@@ -146,6 +159,8 @@
       const abs = Math.abs(n / 10000).toFixed(1);
       return (n >= 0 ? '+' : '-') + abs + '亿';
     };
+    const estMark = (isEst) => isEst
+      ? '<i class="est-mark" title="估算值：按涨跌幅×换手率推算，非真实主力净流入">估</i>' : '';
     D.flows.forEach(f => {
       const pos = f.val >= 0;
       const pct = Math.round(Math.abs(f.val) / maxAbs * 50);
@@ -159,9 +174,9 @@
           <div class="flow-bar ${pos ? 'pos' : 'neg'}" style="width:${pct}%"></div>
         </div>
         <div class="flow-metrics">
-          <span class="flow-val ${cls(f.val)}" title="1日">${money(f.val)}</span>
-          <span class="flow-val ${cls(val5)}" title="5日">${money(val5)}</span>
-          <span class="flow-val ${cls(val20)}" title="20日">${money(val20)}</span>
+          <span class="flow-val ${cls(f.val)}" title="1日">${money(f.val)}${estMark(f.est)}</span>
+          <span class="flow-val ${cls(val5)}" title="5日">${money(val5)}${estMark(f.est5 != null ? f.est5 : f.est)}</span>
+          <span class="flow-val ${cls(val20)}" title="20日">${money(val20)}${estMark(f.est20 != null ? f.est20 : true)}</span>
         </div>`;
       fp.appendChild(row);
     });
@@ -238,7 +253,7 @@
       const macdColor = t.macd > 0 ? 'var(--up)' : 'var(--down)';
       const difColor = t.dif > 0 ? 'var(--up)' : 'var(--down)';
       const sigColor = t.signal === 'BEAR' ? 'var(--down)' : t.signal === 'BULL' ? 'var(--up)' : 'var(--amber)';
-      const sigBg = t.signal === 'BEAR' ? 'var(--down-soft)' : t.signal === 'BULL' ? 'var(--up-soft)' : 'rgba(179,118,11,0.1)';
+      const sigBg = t.signal === 'BEAR' ? 'var(--down-soft)' : t.signal === 'BULL' ? 'var(--up-soft)' : 'rgba(91,78,150,0.1)';
       const b = el('div', 'tech-block');
       b.innerHTML = `
         <div class="tech-head">
@@ -351,6 +366,9 @@
         },
       },
     });
+    // 副标题标注实际归一化基准日（窗口首日=100），随扫描日期变化
+    const baseNote = $('#trendBaseNote');
+    if (baseNote) baseNote.textContent = `归一化 · ${D.trend.dates[0] || '首日'}=100`;
     // legend
     const lg = $('#trendLegend'); lg.innerHTML = '';
     D.trend.series.forEach(s => {
@@ -402,10 +420,10 @@
     if (ddChart) { ddChart.destroy(); ddChart = null; }
     if (kline) {
       const up = kline[kline.length - 1] >= kline[0];
-      const col = up ? '#e1322f' : '#008f5d';
+      const col = up ? (cssVar('--up') || '#bf3a30') : (cssVar('--down') || '#1e8a5e');
       ddChart = new Chart($('#ddChart').getContext('2d'), {
         type: 'line',
-        data: { labels: D.trend.dates, datasets: [{ data: normalize(kline), borderColor: col, borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true, backgroundColor: up ? 'rgba(225,50,47,0.08)' : 'rgba(0,143,93,0.08)' }] },
+        data: { labels: D.trend.dates, datasets: [{ data: normalize(kline), borderColor: col, borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true, backgroundColor: up ? 'rgba(191,58,48,0.08)' : 'rgba(30,138,94,0.08)' }] },
         options: {
           responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { enabled: false } },
           scales: { x: { display: false }, y: { grid: { color: cssVar('--hair') || '#e4dfd2' }, ticks: { color: cssVar('--ink2') || '#6b6f78', font: { family: 'IBM Plex Mono', size: 9 }, maxTicksLimit: 4 } } },
@@ -432,7 +450,7 @@
     $('#stAsOf').innerHTML = `截至 <b>${D.meta.asOf}</b>${dateNote}${backNote}`;
     const upN = D.heatmap.filter(h => h.t > 0).length;
     const dnN = D.heatmap.filter(h => h.t < 0).length;
-    $('#stBreadth').innerHTML = `板块 <b style="color:#ff6b68">${upN}↑</b> / <b style="color:#4fd6a0">${dnN}↓</b>`;
+    $('#stBreadth').innerHTML = `板块 <b style="color:var(--up)">${upN}↑</b> / <b style="color:var(--down)">${dnN}↓</b>`;
     // 静态模式：更新底部行情状态标签
     const siEl = document.querySelector('.si b:last-child');
     if (siEl && siEl.parentElement.textContent.includes('行情')) {
